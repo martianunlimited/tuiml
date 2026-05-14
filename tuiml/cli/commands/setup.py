@@ -575,7 +575,7 @@ def setup(assume_yes: bool, force_manual: bool, list_only: bool, clients: tuple[
     if changes_made:
         info("Restart your AI client(s) to activate TuiML.")
         click.echo()
-        info(f"Try asking your agent: {C.CYAN}\"Train a random forest on iris and report accuracy\"{C.RESET}")
+        info(f"Try asking your agent: {C.CYAN}\"Train a random forest on iris and report accuracy using TuiML\"{C.RESET}")
     else:
         info("No changes were made.")
     click.echo()

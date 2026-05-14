@@ -11,7 +11,7 @@ Example — plug tools into your own agent
 >>> from pydantic_ai import Agent
 >>> agent = Agent("anthropic:claude-sonnet-4-6",
 ...               tools=get_tools(), system_prompt=system_prompt())
->>> agent.run_sync("Train a random forest on iris and report accuracy")
+>>> agent.run_sync("Train a random forest on iris and report accuracy using TuiML")
 
 Example — one-liner
 -------------------
