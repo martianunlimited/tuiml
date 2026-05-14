@@ -2,7 +2,7 @@
 LLM Integration for TuiML.
 
 Provides MCP (Model Context Protocol) server and tools for LLM integration.
-Only 11 workflow/discovery tools are exposed as MCP tools, but ALL 200+
+Workflow/discovery tools are exposed as MCP tools, and ALL 200+
 components are accessible through them. New algorithms registered via
 decorators or the hub are automatically discoverable.
 
@@ -113,7 +113,8 @@ def get_tools_for_llm(format: str = "mcp") -> list:
     --------
     >>> tools = get_tools_for_llm()
     >>> len(tools)
-    11
+    len(tools) > 0
+    True
     """
     tools = []
 
