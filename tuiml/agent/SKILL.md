@@ -1,7 +1,7 @@
 ---
 name: TuiML ML
 description: Machine learning toolkit - train, evaluate, and compare models using 200+ algorithms, preprocessors, and datasets
-version: 0.1.2
+version: 0.1.3
 mcp_server: tuiml-mcp
 ---
 
@@ -626,7 +626,7 @@ class MyClassifier(Classifier):
         # prediction logic
         return predictions
 
-# Automatically registered and discoverable via tuiml_list / tuiml_train
+# Automatically registered and discoverable via tuiml_list, tuiml_train, tuiml_experiment
 ```
 
 ### Custom Preprocessor
@@ -794,16 +794,18 @@ OpenClaw uses the key `mcp.servers`, Zed uses `context_servers`, Codex CLI uses 
 
 ### MCP Tools
 
+28 tools total. All follow `tuiml_<verb>_<noun>` naming.
+
 **Core workflow**
 
 | Tool | Purpose |
 |------|---------|
 | `tuiml_train` | Train any model with preprocessing and CV |
 | `tuiml_predict` | Predict using model_id or model path |
-| `tuiml_evaluate` | Evaluate model with metrics |
+| `tuiml_evaluate` | Evaluate trained model with metrics |
 | `tuiml_experiment` | Compare multiple algorithms across datasets |
 | `tuiml_tune` | Grid or random search over hyperparameters |
-| `tuiml_statistical_test` | Friedman / Wilcoxon test on experiment results |
+| `tuiml_test_statistics` | Friedman / Wilcoxon / Nemenyi test on experiment results |
 
 **Data & preparation**
 
@@ -811,7 +813,7 @@ OpenClaw uses the key `mcp.servers`, Zed uses `context_servers`, Codex CLI uses 
 |------|---------|
 | `tuiml_upload_data` | Upload CSV/ARFF content for other tools |
 | `tuiml_read_data` | Preview rows from a dataset |
-| `tuiml_data_profile` | Summary stats: shape, dtypes, missingness, cardinality |
+| `tuiml_profile_data` | Summary stats: shape, dtypes, missingness, cardinality |
 | `tuiml_generate_data` | Generate synthetic datasets (blobs, moons, Friedman, …) |
 | `tuiml_preprocess` | Apply preprocessors without a full workflow |
 | `tuiml_select_features` | Feature selection as a standalone step |
@@ -821,9 +823,12 @@ OpenClaw uses the key `mcp.servers`, Zed uses `context_servers`, Codex CLI uses 
 
 | Tool | Purpose |
 |------|---------|
-| `tuiml_list` | List components by category |
+| `tuiml_list` | List components by category (`algorithm`, `dataset`, `preprocessing`, `feature`, `custom`) |
 | `tuiml_describe` | Get parameter schema for any component |
-| `tuiml_search` | Search components by keyword |
+
+> `tuiml_list(search="forest")` replaces the old `tuiml_search` tool.
+> `tuiml_list(category="custom")` lists user-authored algorithms with versions and best scores.
+> `tuiml_list(category="custom", include_runs=true)` adds full experiment run history.
 
 **Serving**
 
@@ -845,10 +850,13 @@ OpenClaw uses the key `mcp.servers`, Zed uses `context_servers`, Codex CLI uses 
 
 | Tool | Purpose |
 |------|---------|
-| `tuiml_algorithm_skeleton` | Return a fill-in-the-blanks classifier/regressor template |
+| `tuiml_get_skeleton` | Return a fill-in-the-blanks algorithm template (classifier or regressor) |
 | `tuiml_create_algorithm` | AST-validate and register new Python source as a named + versioned algorithm |
-| `tuiml_list_user_algorithms` | List every user algorithm and its pinned version aliases |
-| `tuiml_delete_user_algorithm` | Remove a version (or all versions) from disk |
+| `tuiml_edit_algorithm` | str_replace patch on a user algorithm — read first, then edit a unique string |
+| `tuiml_read_algorithm` | Get full source of any algorithm (user or built-in) with line numbers |
+| `tuiml_list_files` | List all algorithm source files (built-in and user) with paths |
+| `tuiml_search_source` | Grep inside algorithm source files by regex pattern |
+| `tuiml_delete_algorithm` | Remove a version (or all versions) from disk |
 
 ### Auto-Discovery
 
@@ -1019,24 +1027,32 @@ best = grid.best_estimator_
 **The loop**
 
 ```
-1. tuiml_algorithm_skeleton(kind="classifier")        →  template source
-2. <edit fit() / predict() / __init__ hyperparams>
-3. tuiml_create_algorithm(name="NoisyTreeBag",
+1. tuiml_list(category="custom")
+   →  see what algorithms already exist + versions + best scores
+
+2. tuiml_get_skeleton(kind="classifier")
+   →  template source
+
+3. <fill in fit() / predict() / __init__ hyperparams>
+
+4. tuiml_create_algorithm(name="NoisyTreeBag",
                           kind="classifier",
-                          code=<edited source>,
+                          code=<source>,
                           version="1.0.0")
    →  registered as NoisyTreeBag (latest)
                  and NoisyTreeBag_v1_0_0 (pinned)
 
-4. tuiml_train(algorithm="NoisyTreeBag",
+5. tuiml_train(algorithm="NoisyTreeBag",
                data="iris", target="target", cv=5)
    →  baseline score
 
-5. <iterate: tweak hyperparameters, rewrite>
-6. tuiml_create_algorithm(name="NoisyTreeBag",
-                          code=<new source>, version="1.0.1")
-   →  NoisyTreeBag (latest now v1.0.1)
-                 and NoisyTreeBag_v1_0_1 (pinned)
+6. <iterate: fix a bug or tweak logic>
+   tuiml_read_algorithm(name="NoisyTreeBag")         →  current source
+   tuiml_search_source(query="def fit", name="NoisyTreeBag")  →  locate the line
+   tuiml_edit_algorithm(name="NoisyTreeBag",
+                        old_string="...",
+                        new_string="...",
+                        bump_version=True)            →  saved as v1.0.1, re-registered
 
 7. tuiml_experiment(
       algorithms=["NoisyTreeBag_v1_0_0",
@@ -1048,17 +1064,20 @@ best = grid.best_estimator_
       metrics=["accuracy_score", "f1_score"])
    →  ranked comparison with mean ± std per dataset
 
-8. tuiml_statistical_test(
+8. tuiml_test_statistics(
       results=<experiment output>,
-      test="friedman",  post_hoc="nemenyi")
+      test="friedman", post_hoc="nemenyi")
    →  tells you whether your variant is significantly better
+
+9. tuiml_list(category="custom", include_runs=true)
+   →  full history: all versions, best scores, run counts
 ```
 
 **Versioning rules**
 
 - `name` must be a valid Python identifier — usually equal to the class name.
 - `version` must be semver (`MAJOR.MINOR.PATCH`). Bump it on every change.
-- Every version is kept on disk at `~/.tuiml/user_algorithms/<name>/<version>/algorithm.py` with a `metadata.json` next to it (class name, kind, source hash, description). Nothing is deleted until `tuiml_delete_user_algorithm` is called.
+- Every version is kept on disk at `~/.tuiml/user_algorithms/<name>/<version>/algorithm.py` with a `metadata.json` next to it (class name, kind, source hash, description). Nothing is deleted until `tuiml_delete_algorithm` is called.
 - The bare class name (`NoisyTreeBag`) always resolves to the most recently registered version. Pinned aliases (`NoisyTreeBag_v1_0_0`) resolve to exact versions — use these when comparing variants in one `tuiml_experiment`.
 - All versions are re-registered at MCP server startup, so agent work survives restarts.
 
