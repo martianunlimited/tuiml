@@ -1331,6 +1331,137 @@ WORKFLOW_TOOLS = {
     },
 }
 
+CODE_TOOLS = {
+    "tuiml_read_algorithm": {
+        "name": "tuiml_read_algorithm",
+        "description": (
+            "Return the full source code of any algorithm — user-authored or built-in. "
+            "For user algorithms pass the directory name (class name). "
+            "For built-in algorithms set builtin=true and pass the class name "
+            "(e.g. 'RandomForestClassifier') or file stem (e.g. 'random_forest'). "
+            "Source is returned both raw and with line numbers for easy reference. "
+            "Built-in algorithms are read-only; use tuiml_create_algorithm to fork them."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Algorithm name (class name or directory name).",
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Specific version to read (e.g. '1.0.2'). Defaults to latest.",
+                },
+                "builtin": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Set true to read a built-in tuiml algorithm instead of a user algorithm.",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    "tuiml_list_algorithm_files": {
+        "name": "tuiml_list_algorithm_files",
+        "description": (
+            "List all algorithm source files — built-in and/or user-authored. "
+            "Returns file paths, categories, and metadata. Use this before "
+            "tuiml_read_algorithm to discover what's available and find the right name."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "builtin": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include built-in tuiml algorithm files.",
+                },
+                "user": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include user-authored algorithm files.",
+                },
+            },
+        },
+    },
+    "tuiml_search_source": {
+        "name": "tuiml_search_source",
+        "description": (
+            "Grep for a pattern inside algorithm source files. "
+            "Returns matching lines with file path and line number — "
+            "use this to locate a specific function, variable, or logic before editing. "
+            "Accepts a regex pattern."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Regex pattern to search for.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Scope search to one user algorithm by name. Omit to search all.",
+                },
+                "builtin": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Search built-in algorithm files.",
+                },
+                "user": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Search user-authored algorithm files.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    "tuiml_edit_algorithm": {
+        "name": "tuiml_edit_algorithm",
+        "description": (
+            "Apply a targeted str_replace edit to a user algorithm. "
+            "Replaces exactly one occurrence of old_string with new_string — "
+            "fails loudly if old_string is not found or appears more than once "
+            "(make it more specific with surrounding context). "
+            "The edited source is AST-validated and the algorithm is re-registered "
+            "so all MCP tools immediately see the change. "
+            "Workflow: tuiml_read_algorithm → identify the text to change → tuiml_edit_algorithm. "
+            "Set bump_version=true to save as a new patch version instead of overwriting. "
+            "Built-in algorithms cannot be edited — fork them first with tuiml_create_algorithm. "
+            "Feature-gated: requires env TUIML_ALLOW_USER_ALGORITHMS=1."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "User algorithm name (directory name / class name).",
+                },
+                "old_string": {
+                    "type": "string",
+                    "description": "The exact text to find and replace. Must be unique in the file.",
+                },
+                "new_string": {
+                    "type": "string",
+                    "description": "The replacement text.",
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Target a specific version. Defaults to latest.",
+                },
+                "bump_version": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Save the edit as a new patch version instead of overwriting the current one.",
+                },
+            },
+            "required": ["name", "old_string", "new_string"],
+        },
+    },
+}
+
 DISCOVERY_TOOLS = {
     "tuiml_list": {
         "name": "tuiml_list",
@@ -3408,6 +3539,54 @@ def execute_list_user_algorithms(**kwargs) -> Dict[str, Any]:
     return user_algorithms.list_all()
 
 
+def execute_read_algorithm(**kwargs) -> Dict[str, Any]:
+    from tuiml.agent import user_algorithms
+    if "name" not in kwargs:
+        return {"status": "error", "error_type": "ValueError",
+                "error": "missing required field: name"}
+    return user_algorithms.read_source(
+        name=kwargs["name"],
+        version=kwargs.get("version"),
+        builtin=bool(kwargs.get("builtin", False)),
+    )
+
+
+def execute_list_algorithm_files(**kwargs) -> Dict[str, Any]:
+    from tuiml.agent import user_algorithms
+    return user_algorithms.list_algorithm_files(
+        builtin=bool(kwargs.get("builtin", True)),
+        user=bool(kwargs.get("user", True)),
+    )
+
+
+def execute_search_source(**kwargs) -> Dict[str, Any]:
+    from tuiml.agent import user_algorithms
+    if "query" not in kwargs:
+        return {"status": "error", "error_type": "ValueError",
+                "error": "missing required field: query"}
+    return user_algorithms.search_source(
+        query=kwargs["query"],
+        name=kwargs.get("name"),
+        builtin=bool(kwargs.get("builtin", True)),
+        user=bool(kwargs.get("user", True)),
+    )
+
+
+def execute_edit_algorithm(**kwargs) -> Dict[str, Any]:
+    from tuiml.agent import user_algorithms
+    required = [k for k in ("name", "old_string", "new_string") if k not in kwargs]
+    if required:
+        return {"status": "error", "error_type": "ValueError",
+                "error": f"missing required fields: {', '.join(required)}"}
+    return user_algorithms.edit_algorithm(
+        name=kwargs["name"],
+        old_string=kwargs["old_string"],
+        new_string=kwargs["new_string"],
+        version=kwargs.get("version"),
+        bump_version=bool(kwargs.get("bump_version", False)),
+    )
+
+
 def execute_research_log(**kwargs) -> Dict[str, Any]:
     from tuiml.agent import user_algorithms
     return user_algorithms.research_log(name=kwargs.get("name"))
@@ -3608,6 +3787,10 @@ TOOL_EXECUTORS = {
     "tuiml_list_user_algorithms": execute_list_user_algorithms,
     "tuiml_delete_user_algorithm": execute_delete_user_algorithm,
     "tuiml_research_log": execute_research_log,
+    "tuiml_read_algorithm": execute_read_algorithm,
+    "tuiml_list_algorithm_files": execute_list_algorithm_files,
+    "tuiml_search_source": execute_search_source,
+    "tuiml_edit_algorithm": execute_edit_algorithm,
 }
 
 
@@ -3770,7 +3953,7 @@ def get_tool_annotations(tool_name: str) -> Dict[str, bool]:
 
 def get_workflow_tools() -> Dict[str, Dict]:
     """Get all workflow tool schemas."""
-    return {**WORKFLOW_TOOLS, **DISCOVERY_TOOLS}
+    return {**WORKFLOW_TOOLS, **DISCOVERY_TOOLS, **CODE_TOOLS}
 
 def execute_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """Execute a tool by name."""
