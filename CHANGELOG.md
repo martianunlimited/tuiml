@@ -5,6 +5,22 @@ All notable changes to TuiML will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-05-20
+
+### Added
+- `tuiml uninstall` CLI command and Auto/Manual mode menu in `tuiml setup`.
+- `tuiml_system_info` and `tuiml_self_update` MCP tools.
+- Agent-authored algorithm MCP tools with versioned aliases.
+- Lineage store and `tuiml_research_log` for agent-authored algorithm history.
+- NemoClaw (NVIDIA) client and generic `instructions` kind for MCP registration.
+- OpenClaw kind for CLI-based MCP registration in `tuiml setup`.
+- Native Linux aarch64 wheel builds via ARM runners.
+
+### Changed
+- Renamed `tuiml.llm` → `tuiml.agent` with framework adapters.
+- Clarified example prompts with "using TuiML" suffix.
+- Agent module docs no longer hardcode tool count.
+
 ## [0.1.2] - 2026-04-22
 
 ### Added
@@ -44,5 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model serialization via joblib with save/load utilities.
 - Cross-validation, grid search, and hyperparameter tuning support.
 
+[0.1.3]: https://github.com/tuiml/tuiml/releases/tag/v0.1.3
 [0.1.2]: https://github.com/tuiml/tuiml/releases/tag/v0.1.2
 [0.1.1]: https://github.com/tuiml/tuiml/releases/tag/v0.1.1
