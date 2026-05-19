@@ -357,7 +357,7 @@ class RandomForestClassifier(Classifier):
                  bootstrap: bool = True,
                  oob_score: bool = False,
                  random_state: Optional[int] = None,
-                 n_jobs: int = 1,
+                 n_jobs: int = -1,
                  criterion: str = 'gini'):
         """Initialize RandomForestClassifier classifier.
 
@@ -792,7 +792,7 @@ class RandomForestRegressor(Regressor):
                  bootstrap: bool = True,
                  oob_score: bool = False,
                  random_state: Optional[int] = None,
-                 n_jobs: int = 1,
+                 n_jobs: int = -1,
                  criterion: str = 'squared_error'):
         """Initialize RandomForestRegressor.
 

@@ -271,6 +271,7 @@ class AdaBoostClassifier(Classifier):
 
         self.estimators_ = []
         self.estimator_weights_ = []
+        class_to_idx = {c: j for j, c in enumerate(self.classes_)}
 
         for i in range(self.n_estimators):
             # Check if weights need resampling
@@ -289,12 +290,12 @@ class AdaBoostClassifier(Classifier):
             except TypeError:
                 estimator.fit(X_train, y_train)
 
-            # Get predictions
+            # Get predictions (vectorized comparison)
             predictions = estimator.predict(X)
 
             # Calculate weighted error
             incorrect = predictions != y
-            weighted_error = np.sum(sample_weight * incorrect)
+            weighted_error = np.dot(sample_weight, incorrect)
 
             # Check if error is too high
             if weighted_error >= 1 - 1 / n_classes:
@@ -345,15 +346,15 @@ class AdaBoostClassifier(Classifier):
         n_samples = X.shape[0]
         n_classes = len(self.classes_)
 
-        # Weighted vote
+        # Weighted vote — fully vectorized, no per-sample Python loop
         class_votes = np.zeros((n_samples, n_classes))
+        class_to_idx = {c: j for j, c in enumerate(self.classes_)}
+        row_idx = np.arange(n_samples)
 
         for estimator, weight in zip(self.estimators_, self.estimator_weights_):
             predictions = estimator.predict(X)
-            for i, pred in enumerate(predictions):
-                idx = np.where(self.classes_ == pred)[0]
-                if len(idx) > 0:
-                    class_votes[i, idx[0]] += weight
+            pred_idx = np.array([class_to_idx.get(p, 0) for p in predictions])
+            class_votes[row_idx, pred_idx] += weight
 
         return self.classes_[np.argmax(class_votes, axis=1)]
 
@@ -379,6 +380,8 @@ class AdaBoostClassifier(Classifier):
         n_classes = len(self.classes_)
 
         class_votes = np.zeros((n_samples, n_classes))
+        class_to_idx = {c: j for j, c in enumerate(self.classes_)}
+        row_idx = np.arange(n_samples)
 
         for estimator, weight in zip(self.estimators_, self.estimator_weights_):
             try:
@@ -386,10 +389,8 @@ class AdaBoostClassifier(Classifier):
                 class_votes += weight * proba
             except NotImplementedError:
                 predictions = estimator.predict(X)
-                for i, pred in enumerate(predictions):
-                    idx = np.where(self.classes_ == pred)[0]
-                    if len(idx) > 0:
-                        class_votes[i, idx[0]] += weight
+                pred_idx = np.array([class_to_idx.get(p, 0) for p in predictions])
+                class_votes[row_idx, pred_idx] += weight
 
         # Normalize to probabilities
         proba = class_votes / class_votes.sum(axis=1, keepdims=True)

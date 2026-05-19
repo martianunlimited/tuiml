@@ -131,10 +131,10 @@ class SGDClassifier(Classifier):
                  learning_rate: float = 0.01,
                  regularization: str = 'l2',
                  lambda_: float = 0.0001,
-                 n_epochs: int = 500,
+                 n_epochs: int = 100,
                  random_state: Optional[int] = None,
                  shuffle: bool = True,
-                 batch_size: int = 32):
+                 batch_size: int = 256):
         """Initialize SGDClassifier.
 
         Parameters
@@ -192,7 +192,7 @@ class SGDClassifier(Classifier):
                 "description": "Regularization strength"
             },
             "n_epochs": {
-                "type": "integer", "default": 500, "minimum": 1,
+                "type": "integer", "default": 100, "minimum": 1,
                 "description": "Number of training epochs"
             },
             "random_state": {
@@ -204,7 +204,7 @@ class SGDClassifier(Classifier):
                 "description": "Shuffle data each epoch"
             },
             "batch_size": {
-                "type": "integer", "default": 32, "minimum": 1,
+                "type": "integer", "default": 256, "minimum": 1,
                 "description": "Mini-batch size for gradient updates"
             }
         }
@@ -356,7 +356,7 @@ class SGDClassifier(Classifier):
         y_binary = 2 * y - 1
 
         batch_size = min(self.batch_size, n_samples)
-        tol = 1e-4
+        tol = 1e-3
         best_loss = np.inf
         no_improve = 0
 
@@ -397,7 +397,7 @@ class SGDClassifier(Classifier):
             cur_loss = np.mean(np.maximum(0, 1 - y_binary * all_scores))
             if best_loss - cur_loss < tol:
                 no_improve += 1
-                if no_improve >= 5:
+                if no_improve >= 3:
                     break
             else:
                 no_improve = 0
@@ -750,11 +750,11 @@ class SGDRegressor(Regressor):
                  learning_rate: float = 0.01,
                  regularization: str = 'l2',
                  lambda_: float = 0.0001,
-                 n_epochs: int = 500,
+                 n_epochs: int = 100,
                  epsilon: float = 0.1,
                  random_state: Optional[int] = None,
                  shuffle: bool = True,
-                 batch_size: int = 32):
+                 batch_size: int = 256):
         """Initialize SGDRegressor.
 
         Parameters
@@ -813,7 +813,7 @@ class SGDRegressor(Regressor):
                 "description": "Regularization strength"
             },
             "n_epochs": {
-                "type": "integer", "default": 500, "minimum": 1,
+                "type": "integer", "default": 100, "minimum": 1,
                 "description": "Number of training epochs"
             },
             "epsilon": {
@@ -829,7 +829,7 @@ class SGDRegressor(Regressor):
                 "description": "Shuffle data each epoch"
             },
             "batch_size": {
-                "type": "integer", "default": 32, "minimum": 1,
+                "type": "integer", "default": 256, "minimum": 1,
                 "description": "Mini-batch size for gradient updates"
             }
         }
@@ -912,7 +912,7 @@ class SGDRegressor(Regressor):
         self.bias_ = 0.0
 
         batch_size = min(self.batch_size, n_samples)
-        tol = 1e-4
+        tol = 1e-3
         prev_loss = np.inf
         no_improve = 0
 
@@ -940,16 +940,16 @@ class SGDRegressor(Regressor):
                 self.weights_ -= lr * (grad_w + self._regularization_gradient(self.weights_))
                 self.bias_ -= lr * grad_b
 
-            # Early stopping: check loss every epoch
+            # Early stopping: check every epoch, stop after 3 non-improving epochs
             preds = X @ self.weights_ + self.bias_
             cur_loss = np.mean((y - preds) ** 2)
             if prev_loss - cur_loss < tol:
                 no_improve += 1
-                if no_improve >= 5:
+                if no_improve >= 3:
                     break
             else:
                 no_improve = 0
-            prev_loss = cur_loss
+            prev_loss = min(prev_loss, cur_loss)
 
         self._is_fitted = True
         return self
