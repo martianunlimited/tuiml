@@ -101,6 +101,17 @@ def _platform_app_dir(macos: str, linux: str, windows: str) -> Path:
     return _xdg_config(linux)
 
 
+def _vscode_global_storage(ext_id: str) -> Path:
+    """Return the VS Code globalStorage directory for a specific extension.
+
+    Cline/Roo Code/Kilo Code all store their MCP settings under VS Code's
+    per-extension globalStorage path:
+      <vscode-user>/globalStorage/<publisher.extension>/settings/
+    """
+    user = _platform_app_dir("Code/User", "Code/User", "Code/User")
+    return user / "globalStorage" / ext_id / "settings"
+
+
 def client_specs() -> list[dict]:
     """Return all known MCP client specs."""
     return [
@@ -236,6 +247,63 @@ def client_specs() -> list[dict]:
             "detect": _xdg_config("goose"),
             "config": _xdg_config("goose") / "config.yaml",
         },
+        # ----- Gemini CLI (Google) -----------------------------------------
+        # ~/.gemini/settings.json with top-level "mcpServers" key.
+        {
+            "id": "gemini",
+            "name": "Gemini CLI",
+            "kind": "json-mcp",
+            "detect_command": "gemini",
+            "detect": HOME / ".gemini",
+            "config": HOME / ".gemini" / "settings.json",
+        },
+        # ----- Cline (VS Code) ---------------------------------------------
+        # Stores MCP settings inside VS Code globalStorage; uses "mcpServers".
+        {
+            "id": "cline",
+            "name": "Cline (VS Code)",
+            "kind": "json-mcp",
+            "detect": _vscode_global_storage("saoudrizwan.claude-dev"),
+            "config": _vscode_global_storage("saoudrizwan.claude-dev") / "cline_mcp_settings.json",
+        },
+        # ----- Roo Code (VS Code) ------------------------------------------
+        {
+            "id": "roo",
+            "name": "Roo Code (VS Code)",
+            "kind": "json-mcp",
+            "detect": _vscode_global_storage("rooveterinaryinc.roo-cline"),
+            "config": _vscode_global_storage("rooveterinaryinc.roo-cline") / "mcp_settings.json",
+        },
+        # ----- Kilo Code (VS Code) -----------------------------------------
+        {
+            "id": "kilo",
+            "name": "Kilo Code (VS Code)",
+            "kind": "json-mcp",
+            "detect": _vscode_global_storage("kilocode.kilo-code"),
+            "config": _vscode_global_storage("kilocode.kilo-code") / "mcp_settings.json",
+        },
+        # ----- OpenCode (terminal) -----------------------------------------
+        # Uses a unique schema where `mcp.<name>` is {"type":"local","command":[...]}.
+        # Handled by a dedicated writer.
+        {
+            "id": "opencode",
+            "name": "OpenCode",
+            "kind": "opencode",
+            "detect_command": "opencode",
+            "detect": _xdg_config("opencode"),
+            "config": _xdg_config("opencode") / "opencode.json",
+        },
+        # ----- Antigravity (Google) ----------------------------------------
+        # Google's agentic IDE. Config layout still stabilising; we detect via
+        # the standard per-platform application support dir and write a
+        # Claude-Desktop-style mcpServers config alongside it.
+        {
+            "id": "antigravity",
+            "name": "Antigravity (Google)",
+            "kind": "json-mcp",
+            "detect": _platform_app_dir("Antigravity", "Antigravity", "Antigravity"),
+            "config": _platform_app_dir("Antigravity", "Antigravity", "Antigravity") / "mcp_config.json",
+        },
     ]
 
 
@@ -346,6 +414,36 @@ def configure_openclaw(spec: dict) -> tuple[bool, str]:
     return write_json_mcp(spec["config"], spec["key"], "tuiml", mcp_command)
 
 
+def write_opencode_mcp(config_path: Path, server_name: str, command: str) -> tuple[bool, str]:
+    """Write an MCP entry into OpenCode's opencode.json.
+
+    OpenCode schema places servers under top-level "mcp" with shape:
+        {"mcp": {"<name>": {"type": "local", "command": ["<exec>"], "enabled": true}}}
+    """
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if config_path.exists():
+        try:
+            data = json.loads(config_path.read_text() or "{}")
+        except json.JSONDecodeError as exc:
+            return False, f"existing config is not valid JSON: {exc}"
+    else:
+        data = {"$schema": "https://opencode.ai/config.json"}
+
+    mcp_block = data.get("mcp")
+    if not isinstance(mcp_block, dict):
+        mcp_block = {}
+
+    new_entry = {"type": "local", "command": [command], "enabled": True}
+    if mcp_block.get(server_name) == new_entry:
+        return False, "already configured"
+
+    backup_file(config_path)
+    mcp_block[server_name] = new_entry
+    data["mcp"] = mcp_block
+    config_path.write_text(json.dumps(data, indent=2))
+    return True, "added entry" if server_name not in mcp_block else "updated entry"
+
+
 def write_toml_mcp(config_path: Path, server_name: str, command: str) -> tuple[bool, str]:
     """Append an [mcp_servers.<name>] section to a TOML config (Codex CLI style).
 
@@ -444,6 +542,8 @@ def configure(spec: dict) -> tuple[bool, str]:
         return write_json_mcp(spec["config"], spec["key"], "tuiml", "tuiml-mcp")
     if kind == "toml-mcp":
         return write_toml_mcp(spec["config"], "tuiml", "tuiml-mcp")
+    if kind == "opencode":
+        return write_opencode_mcp(spec["config"], "tuiml", _tuiml_mcp_command())
     if kind == "skill":
         return install_skill_file(spec["skills_dir"])
     if kind == "yaml-instructions":
