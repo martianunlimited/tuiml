@@ -13,10 +13,6 @@ new ``@classifier`` / ``@regressor`` class. This module:
    ``tuiml_describe``) works on user algorithms unchanged.
 4. On ``load_all()`` scans the directory and re-registers everything,
    preserving agent work across MCP server restarts.
-
-Gated by the ``TUIML_ALLOW_USER_ALGORITHMS`` environment variable. When unset
-or ``0``, every write tool returns an error explaining how to enable the
-feature; read tools still work. Set ``TUIML_ALLOW_USER_ALGORITHMS=1`` to opt in.
 """
 
 from __future__ import annotations
@@ -33,28 +29,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 USER_ALGS_DIR = Path.home() / ".tuiml" / "user_algorithms"
-ENABLE_ENV = "TUIML_ALLOW_USER_ALGORITHMS"
-
-
-# ---------------------------------------------------------------------------
-# Feature flag
-# ---------------------------------------------------------------------------
-
-def is_enabled() -> bool:
-    """Return True if agent-authored algorithms are allowed on this machine."""
-    return os.environ.get(ENABLE_ENV, "0").lower() in {"1", "true", "yes", "on"}
-
-
-def _disabled_error() -> Dict[str, Any]:
-    return {
-        "status": "error",
-        "error_type": "FeatureDisabled",
-        "error": (
-            "Agent-authored algorithms are disabled on this machine. "
-            f"Set environment variable {ENABLE_ENV}=1 to enable. "
-            "User code runs in-process and is only AST-filtered, not sandboxed."
-        ),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -368,9 +342,6 @@ def create(name: str, kind: str, code: str,
     Returns a dict with ``status`` and, on success, the registered aliases and
     source hash.
     """
-    if not is_enabled():
-        return _disabled_error()
-
     err = _validate_name(name) or _validate_version(version)
     if err:
         return {"status": "error", "error_type": "ValueError", "error": err}
@@ -468,8 +439,6 @@ def list_all() -> Dict[str, Any]:
 
 def delete(name: str, version: Optional[str] = None) -> Dict[str, Any]:
     """Delete one version (or every version when ``version`` is None)."""
-    if not is_enabled():
-        return _disabled_error()
     err = _validate_name(name)
     if err:
         return {"status": "error", "error_type": "ValueError", "error": err}
@@ -566,8 +535,6 @@ def record_experiment_runs(experiment_result: Dict[str, Any]) -> List[Dict[str, 
     """
     import datetime as _dt, json as _json
 
-    if not is_enabled():
-        return []
     if not isinstance(experiment_result, dict) or experiment_result.get("status") != "success":
         return []
     results = experiment_result.get("results")
@@ -884,9 +851,6 @@ def edit_algorithm(name: str, old_string: str, new_string: str,
     After the edit the source is AST-validated and re-registered. Optionally
     bumps the patch version and saves as a new file.
     """
-    if not is_enabled():
-        return _disabled_error()
-
     err = _validate_name(name)
     if err:
         return {"status": "error", "error_type": "ValueError", "error": err}
@@ -974,9 +938,6 @@ def load_all() -> Dict[str, Any]:
     Called once at MCP server startup. Failures on individual files are logged
     but do not abort the whole load.
     """
-    if not is_enabled():
-        return {"status": "skipped", "reason": f"{ENABLE_ENV} not set"}
-
     if not USER_ALGS_DIR.exists():
         return {"status": "success", "loaded": 0, "errors": []}
 

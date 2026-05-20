@@ -1172,7 +1172,7 @@ WORKFLOW_TOOLS = {
             "Return a ready-to-edit Python source template for a new @classifier "
             "or @regressor class. Agents should call this, fill in fit() and "
             "predict(), then pass the completed source to tuiml_create_algorithm. "
-            "Feature-gated: requires env TUIML_ALLOW_USER_ALGORITHMS=1."
+            ""
         ),
         "inputSchema": {
             "type": "object",
@@ -1213,7 +1213,7 @@ WORKFLOW_TOOLS = {
             "Each version is also registered under a pinned alias "
             "<ClassName>_v<major>_<minor>_<patch> so you can A/B compare versions "
             "inside a single tuiml_experiment. "
-            "Feature-gated: requires env TUIML_ALLOW_USER_ALGORITHMS=1."
+            ""
         ),
         "inputSchema": {
             "type": "object",
@@ -1255,7 +1255,7 @@ WORKFLOW_TOOLS = {
             "Delete a user algorithm from disk. Pass only `name` to remove every "
             "version; pass both to remove a single version. Registry entries for "
             "already-loaded classes remain until the MCP server restarts. "
-            "Feature-gated: requires env TUIML_ALLOW_USER_ALGORITHMS=1."
+            ""
         ),
         "inputSchema": {
             "type": "object",
@@ -1425,7 +1425,7 @@ CODE_TOOLS = {
             "Workflow: tuiml_read_algorithm → identify the text to change → tuiml_edit_algorithm. "
             "Set bump_version=true to save as a new patch version instead of overwriting. "
             "Built-in algorithms cannot be edited — fork them first with tuiml_create_algorithm. "
-            "Feature-gated: requires env TUIML_ALLOW_USER_ALGORITHMS=1."
+            ""
         ),
         "inputSchema": {
             "type": "object",
@@ -3858,7 +3858,7 @@ TOOL_EXECUTORS = {
 
 
 # Bootstrap: re-register agent-authored algorithms from disk so they survive
-# MCP server restarts. Gated by TUIML_ALLOW_USER_ALGORITHMS.
+# MCP server restarts.
 try:
     from tuiml.agent import user_algorithms as _user_algorithms
     _bootstrap_result = _user_algorithms.load_all()
