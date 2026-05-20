@@ -5,6 +5,43 @@ All notable changes to TuiML will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-05-20
+
+### Added
+- C++ pybind11 kernels for SGD (classifier + regressor),
+  agglomerative hierarchical clustering, and Gaussian Mixture EM —
+  closing large performance gaps vs sklearn (see Performance).
+- MCP setup support for 6 new clients: Gemini CLI, Cline, Roo Code,
+  Kilo Code, OpenCode (custom `mcp.<name>` schema), and Antigravity.
+- `path` field in `tuiml_plot` MCP response — plots are now persisted
+  to `~/.tuiml/plots/` (override with `$TUIML_PLOT_DIR`) so agents
+  can embed them in markdown reports via `![](/path/to/plot.png)`.
+
+### Changed
+- `plot_roc_curve` now handles multiclass input: draws per-class
+  one-vs-rest curves with class labels in the legend, plus a
+  dotted macro-average overlay. Previously silently took
+  `probas[:, 1]` and plotted a single curve, giving misleading
+  AUC=1.000 on 3-class problems like iris.
+- AdaBoost: vectorised the prediction aggregation loop
+  (241× → 14× slower vs sklearn on 10k×20 5-class data).
+- RandomForest: default `n_jobs=-1` so all CPU cores are used.
+
+### Fixed
+- `np.trapz` → `np.trapezoid` in `evaluation.metrics.classification`;
+  `roc_auc_score` was crashing on NumPy >= 2.0.
+- `bump_version.py`: SKILL.md path was stale (`tuiml/llm/Skill.md`,
+  now `tuiml/agent/SKILL.md`), so versions were silently skipped.
+
+### Performance
+- SGDRegressor: 278× → 2.4× slower vs sklearn (C++ kernel; was
+  pure-Python mini-batch loop with per-sample allocations).
+- Gaussian Mixture (EM, full covariance): 292× → 1.4× slower vs
+  sklearn (C++ kernel with pre-allocated scratch + manual Cholesky).
+- Hierarchical (ward, 1k samples): 96× → 7× slower vs sklearn
+  (C++ kernel with min-heap + condensed distance matrix +
+  Lance-Williams updates).
+
 ## [0.1.3] - 2026-05-20
 
 ### Added
@@ -60,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model serialization via joblib with save/load utilities.
 - Cross-validation, grid search, and hyperparameter tuning support.
 
+[0.1.4]: https://github.com/tuiml/tuiml/releases/tag/v0.1.4
 [0.1.3]: https://github.com/tuiml/tuiml/releases/tag/v0.1.3
 [0.1.2]: https://github.com/tuiml/tuiml/releases/tag/v0.1.2
 [0.1.1]: https://github.com/tuiml/tuiml/releases/tag/v0.1.1

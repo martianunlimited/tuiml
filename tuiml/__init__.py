@@ -35,7 +35,7 @@ from tuiml.workflow import Workflow, WorkflowResult
 # Agent entry points (tools for every major framework + one-liner agent)
 from tuiml.agent import agent
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 __all__ = [
     # Core registry
