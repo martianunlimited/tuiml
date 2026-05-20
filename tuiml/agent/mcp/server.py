@@ -29,11 +29,77 @@ Usage:
 """
 
 import asyncio
+import datetime as _dt
 import json
+import os
 import queue
 import sys
 import threading
+import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+# ─── MCP call tracing ────────────────────────────────────────────────
+# Every call_tool invocation is appended as a JSONL record so users can
+# audit / replay what their AI clients did. Disable with
+# TUIML_MCP_TRACE=0 (default: enabled).
+_TRACE_ENABLED = os.environ.get("TUIML_MCP_TRACE", "1") != "0"
+_TRACE_PATH = Path(os.environ.get(
+    "TUIML_MCP_TRACE_FILE",
+    str(Path.home() / ".tuiml" / "logs" / "mcp.jsonl"),
+))
+_TRACE_LOCK = threading.Lock()
+_TRACE_PID = os.getpid()
+
+
+def _trace_write(record: dict) -> None:
+    if not _TRACE_ENABLED:
+        return
+    try:
+        _TRACE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _TRACE_LOCK, _TRACE_PATH.open("a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+    except Exception:
+        # Tracing must never break the server
+        pass
+
+
+def _trace_call_start(name: str, args: dict) -> None:
+    # Truncate large arg values so the log file doesn't explode.
+    safe_args = {}
+    for k, v in (args or {}).items():
+        if k == "_progress_callback":
+            continue
+        s = str(v)
+        safe_args[k] = s if len(s) <= 500 else (s[:500] + f"…[truncated, {len(s)} chars]")
+    _trace_write({
+        "ts": _dt.datetime.now().isoformat(timespec="milliseconds"),
+        "pid": _TRACE_PID,
+        "phase": "call",
+        "tool": name,
+        "args": safe_args,
+    })
+
+
+def _trace_call_end(name: str, result: Optional[dict], duration_ms: int,
+                    error: Optional[str]) -> None:
+    summary: Dict[str, Any] = {}
+    if result is not None:
+        # Don't write the full result (may include base64 images, large
+        # arrays). Keep just status + top-level keys for traceability.
+        summary["status"] = result.get("status", "unknown") if isinstance(result, dict) else "non-dict"
+        if isinstance(result, dict):
+            summary["keys"] = sorted(k for k in result.keys() if not k.startswith("_"))
+    _trace_write({
+        "ts": _dt.datetime.now().isoformat(timespec="milliseconds"),
+        "pid": _TRACE_PID,
+        "phase": "return",
+        "tool": name,
+        "duration_ms": duration_ms,
+        "summary": summary,
+        "error": error,
+    })
 
 # MCP imports - optional dependency
 try:
@@ -154,6 +220,9 @@ def create_server() -> "Server":
         """Execute any TuiML tool."""
         from tuiml.agent.tools import execute_tool
 
+        _trace_call_start(name, arguments)
+        _t0 = time.perf_counter()
+
         try:
             # For long-running tools, set up real-time progress notifications
             if name in _PROGRESS_TOOLS:
@@ -206,6 +275,9 @@ def create_server() -> "Server":
             # but not null when typed as "string"/"integer"/etc.
             result = _strip_none(result)
 
+            duration_ms = int((time.perf_counter() - _t0) * 1000)
+            _trace_call_end(name, result, duration_ms, error=None)
+
             # If the result contains image data, return mixed content
             if '_image_base64' in result:
                 image_data = result.pop('_image_base64')
@@ -218,6 +290,8 @@ def create_server() -> "Server":
             return result
 
         except Exception as e:
+            duration_ms = int((time.perf_counter() - _t0) * 1000)
+            _trace_call_end(name, None, duration_ms, error=str(e))
             return {
                 "status": "error",
                 "error": str(e),
@@ -315,7 +389,9 @@ async def run_server():
     exposed = info['tools']['exposed_tools']
     discoverable = info['tools']['discoverable_components']
     print(f"✓ {exposed} MCP tools exposed, {discoverable} components discoverable", file=sys.stderr)
-    print("✓ TuiML MCP Server started (waiting for client)", file=sys.stderr)
+    print("✓ TuiML MCP Server started (stdio transport, local only)", file=sys.stderr)
+    print("  Remote/networked use: https://tuiml.ai/docs/remote-mcp.html", file=sys.stderr)
+    print("  Waiting for client...", file=sys.stderr)
 
     server = create_server()
 
