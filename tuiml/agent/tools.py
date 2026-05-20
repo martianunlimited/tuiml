@@ -1278,8 +1278,8 @@ WORKFLOW_TOOLS = {
             "stderr, and the resulting version. Editable / dev installs are "
             "refused — those need a git pull instead.\n\n"
             "IMPORTANT: the running MCP process is still using the old package "
-            "in memory. The client (Claude Desktop, Cursor, etc.) must be "
-            "restarted for the new version to take effect."
+            "in memory. Call tuiml_restart immediately after, or restart the "
+            "client manually, for the new version to take effect."
         ),
         "inputSchema": {
             "type": "object",
@@ -1292,6 +1292,34 @@ WORKFLOW_TOOLS = {
                 "target_version": {
                     "type": "string",
                     "description": "Upgrade to a specific version (e.g. '0.1.3'). Defaults to latest.",
+                },
+            },
+        },
+    },
+    "tuiml_restart": {
+        "name": "tuiml_restart",
+        "description": (
+            "Restart every running tuiml-mcp process so AI clients pick up "
+            "freshly installed code (e.g. right after tuiml_self_update). "
+            "Sends SIGTERM (then SIGKILL after a grace period) to every "
+            "tuiml-mcp child; each parent client (Claude Desktop, Cursor, "
+            "Codex, ...) automatically respawns its child on the next "
+            "request. The current MCP process schedules a self-exit AFTER "
+            "this response is sent, so the agent should expect a brief "
+            "reconnect."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "include_self": {
+                    "type": "boolean",
+                    "description": (
+                        "Also exit the current MCP process after responding. "
+                        "True is the usual case — it forces the calling "
+                        "client to respawn with the new code too. Set False "
+                        "to restart only the other clients' instances."
+                    ),
+                    "default": True,
                 },
             },
         },
@@ -3754,7 +3782,41 @@ def execute_self_update(**kwargs) -> Dict[str, Any]:
         "version_before": before,
         "version_after": after,
         "restart_required": ok,
-        "note": "Restart the MCP client (Claude Desktop, Cursor, etc.) to load the new version.",
+        "note": "Call tuiml_restart to reload the MCP servers (or restart the client manually).",
+    }
+
+
+def execute_restart(**kwargs) -> Dict[str, Any]:
+    """Restart every running tuiml-mcp child process.
+
+    When called from an MCP context the current server is one of those
+    children. We schedule a deferred self-exit (after a short delay)
+    so this response can be flushed back to the agent before the
+    process dies; the parent client (Claude Desktop, Cursor, …) will
+    auto-respawn the child with the newly installed code on its next
+    request.
+    """
+    from tuiml.agent.restart_util import find_mcp_processes, kill_mcp_processes
+
+    include_self = kwargs.get("include_self", True)
+    others = find_mcp_processes(exclude_self=True)
+    result = kill_mcp_processes(
+        procs=others,
+        grace_seconds=2.0,
+        include_self=include_self,
+        self_delay_seconds=0.5,
+    )
+
+    return {
+        "status": "success",
+        "killed_other": result["killed"],
+        "failed": result["failed"],
+        "self_exit_scheduled": result["self_exit_scheduled"],
+        "note": (
+            "Clients automatically respawn their tuiml-mcp child on the next "
+            "request. If you called this right after tuiml_self_update, the "
+            "new version will be loaded then."
+        ),
     }
 
 
@@ -3784,6 +3846,7 @@ TOOL_EXECUTORS = {
     "tuiml_read_data": execute_read_data,
     "tuiml_system_info": execute_system_info,
     "tuiml_self_update": execute_self_update,
+    "tuiml_restart":     execute_restart,
     "tuiml_get_skeleton": execute_algorithm_skeleton,
     "tuiml_create_algorithm": execute_create_algorithm,
     "tuiml_delete_algorithm": execute_delete_user_algorithm,

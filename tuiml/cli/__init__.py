@@ -23,7 +23,7 @@ def cli(ctx):
 from tuiml.cli.commands import (
     train, predict, evaluate, experiment, list_cmd,
     serve, setup, uninstall, info, update, mcp,
-    status, trace,
+    status, trace, restart,
 )
 
 # Register commands
@@ -40,6 +40,7 @@ cli.add_command(update.update)
 cli.add_command(mcp.mcp)
 cli.add_command(status.status)
 cli.add_command(trace.trace)
+cli.add_command(restart.restart)
 
 def main():
     """Main entry point for CLI."""
