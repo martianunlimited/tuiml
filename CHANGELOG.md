@@ -30,8 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `np.trapz` → `np.trapezoid` in `evaluation.metrics.classification`;
   `roc_auc_score` was crashing on NumPy >= 2.0.
-- `bump_version.py`: SKILL.md path was stale (`tuiml/llm/Skill.md`,
-  now `tuiml/agent/SKILL.md`), so versions were silently skipped.
 
 ### Performance
 - SGDRegressor: 278× → 2.4× slower vs sklearn (C++ kernel; was
