@@ -294,15 +294,30 @@ def client_specs() -> list[dict]:
             "config": _xdg_config("opencode") / "opencode.json",
         },
         # ----- Antigravity (Google) ----------------------------------------
-        # Google's agentic IDE. Config layout still stabilising; we detect via
-        # the standard per-platform application support dir and write a
-        # Claude-Desktop-style mcpServers config alongside it.
+        # Google's agentic IDE is a VS Code fork. It has NO native global MCP
+        # config file — MCP support comes through extensions (Claude Code,
+        # Kilo Code, Cline, etc.), each of which keeps its own config under
+        # Antigravity's User/globalStorage/<ext>/ directory. We can detect
+        # that Antigravity is installed, but there's nothing for us to write
+        # globally, so we print guidance instead of fabricating a dead file.
         {
             "id": "antigravity",
             "name": "Antigravity (Google)",
-            "kind": "json-mcp",
+            "kind": "instructions",
             "detect": _platform_app_dir("Antigravity", "Antigravity", "Antigravity"),
-            "config": _platform_app_dir("Antigravity", "Antigravity", "Antigravity") / "mcp_config.json",
+            "config": _platform_app_dir("Antigravity", "Antigravity", "Antigravity"),
+            "instructions": (
+                "Antigravity (Google's agentic IDE) is a VS Code fork and has\n"
+                "no global MCP config file — MCP servers are added through\n"
+                "extensions, not a top-level config.\n"
+                "To use TuiML inside Antigravity:\n"
+                "  1. Install an MCP-capable extension (Claude Code, Kilo Code,\n"
+                "     Cline, or Roo Code) from the Antigravity marketplace.\n"
+                "  2. Configure TuiML through that extension's own MCP settings,\n"
+                "     pointing it at the `tuiml-mcp` command.\n"
+                "  3. The extension stores its config under\n"
+                "     <Antigravity>/User/globalStorage/<extension-id>/."
+            ),
         },
     ]
 
