@@ -52,8 +52,8 @@ def _format_record(rec: dict) -> str:
 
 
 @click.command()
-@click.option("-f", "--follow", is_flag=True,
-              help="Follow new entries (like tail -f). Ctrl-C to stop.")
+@click.option("-f/-F", "--follow/--no-follow", default=True,
+              help="Follow new entries in real time (default: on). --no-follow to print and exit.")
 @click.option("-n", "--lines", type=int, default=50,
               help="Number of recent records to show (default: 50).")
 @click.option("--tool", "tool_filter", metavar="NAME",
@@ -67,7 +67,7 @@ def _format_record(rec: dict) -> str:
                    "$TUIML_MCP_TRACE_FILE or ~/.tuiml/logs/mcp.jsonl.")
 def trace(follow: bool, lines: int, tool_filter: str | None,
           as_json: bool, clear: bool, path_override: str | None) -> None:
-    """View or follow MCP tool-call traces."""
+    """View or follow MCP tool-call traces (live by default, Ctrl-C to stop)."""
     path = Path(path_override) if path_override else _default_path()
 
     if clear:
@@ -79,10 +79,18 @@ def trace(follow: bool, lines: int, tool_filter: str | None,
         return
 
     if not path.exists():
-        click.echo(f"No trace log at {path}", err=True)
-        click.echo("Trigger any MCP tool call from a connected AI client, "
-                   "then re-run.", err=True)
-        raise click.exceptions.Exit(1)
+        if not follow:
+            click.echo(f"No trace log at {path}", err=True)
+            click.echo("Trigger any MCP tool call from a connected AI client, "
+                       "then re-run.", err=True)
+            raise click.exceptions.Exit(1)
+        click.echo(f"Waiting for trace log at {path} (Ctrl-C to stop)…", err=True)
+        try:
+            while not path.exists():
+                _time.sleep(0.5)
+        except KeyboardInterrupt:
+            click.echo("", err=True)
+            return
 
     def _matches(rec: dict) -> bool:
         return not tool_filter or rec.get("tool") == tool_filter
@@ -108,7 +116,7 @@ def trace(follow: bool, lines: int, tool_filter: str | None,
         return
 
     # ── Live tail (poll-based, no extra deps) ─────────────────────────
-    click.echo("\n--- following (Ctrl-C to stop) ---", err=True)
+    click.echo("\n--- live (Ctrl-C to stop  |  --no-follow to print and exit) ---", err=True)
     with path.open() as f:
         f.seek(0, 2)  # to EOF
         try:
