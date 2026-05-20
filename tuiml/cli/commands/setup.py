@@ -112,6 +112,17 @@ def _vscode_global_storage(ext_id: str) -> Path:
     return user / "globalStorage" / ext_id / "settings"
 
 
+def _fork_global_storage(app: str, ext_id: str) -> Path:
+    """globalStorage/<ext>/settings for a VS Code *fork* (Antigravity, etc.).
+
+    Forks keep the same User/globalStorage layout as VS Code but under
+    their own application-support directory, e.g.
+      ~/Library/Application Support/Antigravity/User/globalStorage/<ext>/settings
+    """
+    user = _platform_app_dir(f"{app}/User", f"{app}/User", f"{app}/User")
+    return user / "globalStorage" / ext_id / "settings"
+
+
 def client_specs() -> list[dict]:
     """Return all known MCP client specs."""
     return [
@@ -293,42 +304,60 @@ def client_specs() -> list[dict]:
             "detect": _xdg_config("opencode"),
             "config": _xdg_config("opencode") / "opencode.json",
         },
-        # ----- Antigravity (Google) ----------------------------------------
-        # Google's agentic IDE is a VS Code fork. It has NO native global MCP
-        # config file — MCP support comes through extensions (Claude Code,
-        # Kilo Code, Cline, etc.), each of which keeps its own config under
-        # Antigravity's User/globalStorage/<ext>/ directory. We can detect
-        # that Antigravity is installed, but there's nothing for us to write
-        # globally, so we print guidance instead of fabricating a dead file.
+        # ----- Antigravity (Google) — VS Code fork -------------------------
+        # Antigravity has NO native global MCP config; MCP comes through
+        # extensions, each keeping config under
+        #   <Antigravity>/User/globalStorage/<ext-id>/settings/
+        # mirroring VS Code. We add concrete entries for the MCP-capable
+        # extensions, detected by their install dir under ~/.antigravity/
+        # extensions/<ext-id>-<version>/ (glob, since the dir is versioned).
         {
-            "id": "antigravity",
-            "name": "Antigravity (Google)",
-            "kind": "instructions",
-            "detect": _platform_app_dir("Antigravity", "Antigravity", "Antigravity"),
-            "config": _platform_app_dir("Antigravity", "Antigravity", "Antigravity"),
-            "instructions": (
-                "Antigravity (Google's agentic IDE) is a VS Code fork and has\n"
-                "no global MCP config file — MCP servers are added through\n"
-                "extensions, not a top-level config.\n"
-                "To use TuiML inside Antigravity:\n"
-                "  1. Install an MCP-capable extension (Claude Code, Kilo Code,\n"
-                "     Cline, or Roo Code) from the Antigravity marketplace.\n"
-                "  2. Configure TuiML through that extension's own MCP settings,\n"
-                "     pointing it at the `tuiml-mcp` command.\n"
-                "  3. The extension stores its config under\n"
-                "     <Antigravity>/User/globalStorage/<extension-id>/."
-            ),
+            "id": "antigravity-kilo",
+            "name": "Antigravity · Kilo Code",
+            "kind": "json-mcp",
+            "detect_glob": (HOME / ".antigravity" / "extensions", "kilocode.kilo-code-*"),
+            "detect": _fork_global_storage("Antigravity", "kilocode.kilo-code"),
+            "config": _fork_global_storage("Antigravity", "kilocode.kilo-code") / "mcp_settings.json",
+        },
+        {
+            "id": "antigravity-cline",
+            "name": "Antigravity · Cline",
+            "kind": "json-mcp",
+            "detect_glob": (HOME / ".antigravity" / "extensions", "saoudrizwan.claude-dev-*"),
+            "detect": _fork_global_storage("Antigravity", "saoudrizwan.claude-dev"),
+            "config": _fork_global_storage("Antigravity", "saoudrizwan.claude-dev") / "cline_mcp_settings.json",
+        },
+        {
+            "id": "antigravity-roo",
+            "name": "Antigravity · Roo Code",
+            "kind": "json-mcp",
+            "detect_glob": (HOME / ".antigravity" / "extensions", "rooveterinaryinc.roo-cline-*"),
+            "detect": _fork_global_storage("Antigravity", "rooveterinaryinc.roo-cline"),
+            "config": _fork_global_storage("Antigravity", "rooveterinaryinc.roo-cline") / "mcp_settings.json",
         },
     ]
 
 
 def detect_clients() -> list[dict]:
-    """Return specs detected by config path or command availability."""
+    """Return specs detected by config path, glob, or command availability."""
     detected = []
     for spec in client_specs():
+        # 1) config/install dir exists
         if spec["detect"].exists():
             detected.append(spec)
             continue
+        # 2) a versioned install dir matches a glob (e.g. an extension folder
+        #    like ~/.antigravity/extensions/kilocode.kilo-code-5.11.0)
+        detect_glob = spec.get("detect_glob")
+        if detect_glob:
+            base, pattern = detect_glob
+            try:
+                if base.exists() and any(base.glob(pattern)):
+                    detected.append(spec)
+                    continue
+            except OSError:
+                pass
+        # 3) a CLI command is on PATH
         command = spec.get("detect_command")
         if command and shutil.which(command):
             detected.append(spec)
