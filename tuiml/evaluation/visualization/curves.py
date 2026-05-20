@@ -19,6 +19,25 @@ except ImportError:
 
 from ._style import get_colors, setup_figure, style_axis, SEMANTIC_COLORS
 
+def _roc_curve_binary(y_true_bin: np.ndarray, y_score: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Compute (fpr, tpr, auc) for a single binary-labelled vector y_true_bin in {0,1}."""
+    thresholds = np.sort(np.unique(y_score))[::-1]
+    tpr_list, fpr_list = [0.0], [0.0]
+    for thresh in thresholds:
+        y_pred = (y_score >= thresh).astype(int)
+        tp = np.sum((y_pred == 1) & (y_true_bin == 1))
+        fp = np.sum((y_pred == 1) & (y_true_bin == 0))
+        tn = np.sum((y_pred == 0) & (y_true_bin == 0))
+        fn = np.sum((y_pred == 0) & (y_true_bin == 1))
+        tpr_list.append(tp / (tp + fn) if (tp + fn) > 0 else 0.0)
+        fpr_list.append(fp / (fp + tn) if (fp + tn) > 0 else 0.0)
+    tpr_list.append(1.0); fpr_list.append(1.0)
+    fpr = np.array(fpr_list); tpr = np.array(tpr_list)
+    order = np.argsort(fpr)
+    fpr, tpr = fpr[order], tpr[order]
+    return fpr, tpr, float(_trapz(tpr, fpr))
+
+
 def plot_roc_curve(
     y_true: np.ndarray,
     y_score: np.ndarray,
@@ -28,105 +47,99 @@ def plot_roc_curve(
     show_auc: bool = True,
     label: str = None,
     show_grid: bool = False,
+    classes: Optional[List] = None,
 ):
-    """
-    Plot ROC curve.
+    """Plot ROC curve(s) — binary or multiclass (one-vs-rest).
 
     Parameters
     ----------
-    y_true : ndarray
-        True binary labels.
-    y_score : ndarray
-        Predicted probabilities for positive class.
-    title : str
-        Plot title.
-    figsize : tuple
-        Figure size.
-    save_path : str, optional
-        Path to save figure.
-    show_auc : bool, default=True
-        Show AUC score in legend.
-    label : str, optional
-        Label for the curve.
-    show_grid : bool, default=False
-        Whether to show axis grid lines.
+    y_true : ndarray of shape (n_samples,)
+        True class labels (binary or multiclass).
+    y_score : ndarray of shape (n_samples,) or (n_samples, n_classes)
+        For binary: probabilities of the positive class (1-D).
+        For multiclass: per-class probabilities (2-D); one OvR curve is
+        drawn for each class and a macro-average curve is overlaid.
+    classes : list, optional
+        Class labels in the column order of `y_score`. Used to label the
+        per-class curves. Defaults to ``np.unique(y_true)``.
     """
     if not HAS_MATPLOTLIB:
         raise ImportError("matplotlib is required for plotting")
 
-    colors = get_colors(2)
-
     y_true = np.asarray(y_true)
     y_score = np.asarray(y_score)
 
-    # Calculate ROC curve
-    thresholds = np.unique(y_score)
-    thresholds = np.sort(thresholds)[::-1]
+    # ── Multiclass path (one-vs-rest) ────────────────────────────────
+    if y_score.ndim == 2 and y_score.shape[1] > 2:
+        if classes is None:
+            classes = list(np.unique(y_true))
+        n_classes = y_score.shape[1]
+        colors = get_colors(n_classes)
 
-    tpr_list = [0.0]
-    fpr_list = [0.0]
+        fig, ax = setup_figure(figsize=figsize)
+        # Common FPR grid for macro-averaging
+        all_fpr = np.linspace(0.0, 1.0, 200)
+        mean_tpr = np.zeros_like(all_fpr)
+        per_class_auc = []
 
-    for thresh in thresholds:
-        y_pred = (y_score >= thresh).astype(int)
+        for k in range(n_classes):
+            y_true_bin = (y_true == classes[k]).astype(int)
+            fpr_k, tpr_k, auc_k = _roc_curve_binary(y_true_bin, y_score[:, k])
+            per_class_auc.append(auc_k)
+            ax.plot(fpr_k, tpr_k, lw=2.0, color=colors[k],
+                    label=f'{classes[k]} (AUC = {auc_k:.3f})')
+            mean_tpr += np.interp(all_fpr, fpr_k, tpr_k)
 
-        tp = np.sum((y_pred == 1) & (y_true == 1))
-        fp = np.sum((y_pred == 1) & (y_true == 0))
-        tn = np.sum((y_pred == 0) & (y_true == 0))
-        fn = np.sum((y_pred == 0) & (y_true == 1))
+        mean_tpr /= n_classes
+        macro_auc = float(_trapz(mean_tpr, all_fpr))
+        ax.plot(all_fpr, mean_tpr, lw=3.0, linestyle=':',
+                color=SEMANTIC_COLORS.get('primary', 'k'),
+                label=f'macro-avg (AUC = {macro_auc:.3f})')
+        ax.plot([0, 1], [0, 1], '--', lw=1.5, color=SEMANTIC_COLORS['neutral'], label='Random')
 
-        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
-        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
+        ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.02])
+        style_axis(ax, title=f'{title} (one-vs-rest)',
+                   xlabel='False Positive Rate', ylabel='True Positive Rate',
+                   legend=True, legend_loc='lower right', grid=True)
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, format='png', bbox_inches='tight', dpi=300)
+        plt.show()
+        return all_fpr, mean_tpr, macro_auc
 
-        tpr_list.append(tpr)
-        fpr_list.append(fpr)
+    # ── Binary path ──────────────────────────────────────────────────
+    # If a 2-column proba matrix was passed, use the positive-class column.
+    if y_score.ndim == 2 and y_score.shape[1] == 2:
+        y_score = y_score[:, 1]
 
-    tpr_list.append(1.0)
-    fpr_list.append(1.0)
+    # Normalise true labels to {0,1}
+    uniq = np.unique(y_true)
+    if not (set(uniq.tolist()) <= {0, 1}):
+        pos_label = uniq[-1]
+        y_true_bin = (y_true == pos_label).astype(int)
+    else:
+        y_true_bin = y_true.astype(int)
 
-    fpr = np.array(fpr_list)
-    tpr = np.array(tpr_list)
+    fpr, tpr, auc = _roc_curve_binary(y_true_bin, y_score)
 
-    # Calculate AUC using trapezoidal rule
-    sorted_idx = np.argsort(fpr)
-    fpr_sorted = fpr[sorted_idx]
-    tpr_sorted = tpr[sorted_idx]
-    auc = _trapz(tpr_sorted, fpr_sorted)
-
-    # Plot
+    colors = get_colors(2)
     fig, ax = setup_figure(figsize=figsize)
-
     if label is None:
         label = f'ROC (AUC = {auc:.3f})' if show_auc else 'ROC'
     elif show_auc:
         label = f'{label} (AUC = {auc:.3f})'
 
-    ax.plot(fpr_sorted, tpr_sorted, lw=3.0, label=label, color=colors[0])
+    ax.plot(fpr, tpr, lw=3.0, label=label, color=colors[0])
     ax.plot([0, 1], [0, 1], '--', lw=2.0, label='Random', color=SEMANTIC_COLORS['neutral'])
-
-    # Fill area under curve
-    ax.fill_between(fpr_sorted, tpr_sorted, alpha=0.2, color=colors[0])
-
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.02])
-
-    style_axis(
-        ax,
-        title=title,
-        xlabel='False Positive Rate',
-        ylabel='True Positive Rate',
-        legend=True,
-        legend_loc='lower right',
-        grid=True,
-    )
-
+    ax.fill_between(fpr, tpr, alpha=0.2, color=colors[0])
+    ax.set_xlim([0.0, 1.0]); ax.set_ylim([0.0, 1.02])
+    style_axis(ax, title=title, xlabel='False Positive Rate', ylabel='True Positive Rate',
+               legend=True, legend_loc='lower right', grid=True)
     plt.tight_layout()
-
     if save_path:
         plt.savefig(save_path, format='png', bbox_inches='tight', dpi=300)
-
     plt.show()
-
-    return fpr_sorted, tpr_sorted, auc
+    return fpr, tpr, auc
 
 def plot_pr_curve(
     y_true: np.ndarray,

@@ -249,7 +249,7 @@ def roc_auc_score(y_true, y_score, average='macro'):
         fps = np.cumsum(y_true == 0)
         tpr = tps / tps[-1] if tps[-1] > 0 else np.zeros_like(tps)
         fpr = fps / fps[-1] if fps[-1] > 0 else np.zeros_like(fps)
-        return float(np.trapz(tpr, fpr))
+        return float(np.trapezoid(tpr, fpr))
     return 0.0
 
 def precision_recall_fscore_support(y_true, y_pred, beta=1.0, labels=None, pos_label=1, average=None, zero_division=0.0):
@@ -327,7 +327,7 @@ def roc_curve(y_true, y_score, pos_label=1):
 
 def auc(x, y):
     """Compute AUC using trapezoidal rule."""
-    return float(np.trapz(y, x))
+    return float(np.trapezoid(y, x))
 
 def precision_recall_curve(y_true, y_score, pos_label=1):
     """Compute PR curve."""

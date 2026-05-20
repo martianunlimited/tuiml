@@ -2503,8 +2503,14 @@ def execute_plot(**kwargs) -> Dict[str, Any]:
         plot_type = kwargs['plot_type']
         title = kwargs.get('title')
 
-        # Create a temp file for the plot
-        plot_path = os.path.join(tempfile.gettempdir(), f'tuiml_plot_{uuid.uuid4().hex[:8]}.png')
+        # Save plot to a persistent, discoverable directory so the AI can
+        # reference the file path in markdown reports (in addition to seeing
+        # the inline image). Override via $TUIML_PLOT_DIR.
+        from pathlib import Path
+        plot_dir = Path(os.environ.get('TUIML_PLOT_DIR',
+                                       str(Path.home() / '.tuiml' / 'plots')))
+        plot_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = str(plot_dir / f'{plot_type}_{uuid.uuid4().hex[:8]}.png')
 
         if plot_type == 'confusion_matrix':
             from tuiml.evaluation.visualization import plot_confusion_matrix
@@ -2541,18 +2547,27 @@ def execute_plot(**kwargs) -> Dict[str, Any]:
                     'suggestion': 'Use a classifier that supports probability estimates (e.g., RandomForestClassifier, NaiveBayesClassifier).'
                 }
             probas = model.predict_proba(dataset.X)
-            # For binary classification, use the probability of the positive class
-            if probas.ndim == 2:
+            # Multiclass (>2 columns): pass the full proba matrix + class
+            # labels so plot_roc_curve draws per-class OvR curves + macro avg.
+            # Binary (1- or 2-D): pass positive-class probabilities.
+            classes = getattr(model, 'classes_', None)
+            if probas.ndim == 2 and probas.shape[1] > 2:
+                y_score = probas
+                desc_suffix = ' (one-vs-rest per class, plus macro-average)'
+            elif probas.ndim == 2:
                 y_score = probas[:, 1]
+                desc_suffix = ''
             else:
                 y_score = probas
+                desc_suffix = ''
 
             plot_roc_curve(
                 dataset.y, y_score,
                 title=title or 'ROC Curve',
                 save_path=plot_path,
+                classes=list(classes) if classes is not None else None,
             )
-            description = 'ROC curve with AUC score.'
+            description = f'ROC curve with AUC score.{desc_suffix}'
 
         elif plot_type == 'pr_curve':
             from tuiml.evaluation.visualization import plot_pr_curve
@@ -2826,18 +2841,18 @@ def execute_plot(**kwargs) -> Dict[str, Any]:
         # Close any remaining figures to free memory
         plt.close('all')
 
-        # Read the saved plot and base64 encode it
+        # Read the saved plot and base64 encode it (so the AI can see it
+        # inline). We keep the file on disk so the AI can also embed it
+        # in markdown reports via the returned `path`.
         with open(plot_path, 'rb') as f:
             image_bytes = f.read()
         image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-
-        # Clean up temp file
-        os.remove(plot_path)
 
         return {
             'status': 'success',
             'plot_type': plot_type,
             'description': description,
+            'path': plot_path,
             '_image_base64': image_b64,
             '_image_mime': 'image/png',
         }
