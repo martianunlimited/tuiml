@@ -4,13 +4,14 @@ import click
 import tuiml
 
 @click.command()
-@click.argument('model_path', type=click.Path(exists=True))
+@click.argument('model_path', required=False, type=click.Path(exists=True))
 @click.argument('data', type=click.Path(exists=True))
 @click.argument('target')
+@click.option('--model-id', help='Model ID returned by tuiml train')
 @click.option('--metrics', '-m', multiple=True, help='Metrics to compute (default: auto)')
 @click.option('--output', '-o', help='Output file for results (JSON)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def evaluate(model_path, data, target, metrics, output, verbose):
+def evaluate(model_path, data, target, model_id, metrics, output, verbose):
     """Evaluate a trained model on a test dataset.
 
     This command computes performance metrics for a model using a provided 
@@ -47,11 +48,21 @@ def evaluate(model_path, data, target, metrics, output, verbose):
     >>> tuiml evaluate model.pkl test.csv class -o results.json
     """
     try:
-        if verbose:
-            click.echo(f"Loading model from: {model_path}")
+        from tuiml.agent.tools import _load_model_from_disk
+        
+        if not model_path and not model_id:
+            raise click.UsageError("Must provide either MODEL_PATH argument or --model-id option.")
 
-        # Load model
-        model = tuiml.load(model_path)
+        if model_id:
+            if verbose:
+                click.echo(f"Loading model from ID: {model_id}")
+            model = _load_model_from_disk(model_id=model_id)
+            if not model:
+                raise click.ClickException(f"Model ID '{model_id}' not found.")
+        else:
+            if verbose:
+                click.echo(f"Loading model from: {model_path}")
+            model = tuiml.load(model_path)
 
         if verbose:
             click.echo(f"Loading data from: {data}")

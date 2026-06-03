@@ -7,7 +7,7 @@ import tuiml
 @click.command()
 @click.option('--algorithms', '-a', multiple=True, required=True,
               help='Algorithm names (exact class names, e.g., RandomForestClassifier, SVM)')
-@click.option('--data', '-d', required=True, type=click.Path(exists=True), help='Path to dataset file')
+@click.option('--data', '-d', multiple=True, required=True, help='Path to dataset file(s) or built-in dataset name(s)')
 @click.option('--target', '-t', required=True, help='Target column name')
 @click.option('--cv', type=int, default=10, help='Number of cross-validation folds (default: 10)')
 @click.option('--metrics', '-m', multiple=True, help='Metrics to compute (default: accuracy)')
@@ -19,7 +19,7 @@ import tuiml
 def experiment(algorithms, data, target, cv, metrics, output, format, plot, verbose):
     """Run cross-validation experiments to compare multiple algorithms.
 
-    This command benchmarks multiple algorithms on the same dataset using 
+    This command benchmarks multiple algorithms on one or more datasets using 
     cross-validation and generates summary statistics, comparison tables, 
     and optional visualization plots.
 
@@ -27,10 +27,10 @@ def experiment(algorithms, data, target, cv, metrics, output, format, plot, verb
     ----------
     algorithms : list of str
         The names of the algorithms to compare (e.g., ``"RandomForestClassifier"``).
-    data : str
-        Path to the dataset file (CSV, ARFF, etc.).
+    data : list of str
+        Path to the dataset file(s) (CSV, ARFF, etc.) or built-in dataset names.
     target : str
-        Name of the target column in the dataset.
+        Name of the target column in the dataset(s).
     cv : int, default=10
         Number of cross-validation folds.
     metrics : list of str, optional
@@ -51,23 +51,28 @@ def experiment(algorithms, data, target, cv, metrics, output, format, plot, verb
 
     >>> tuiml experiment -a RandomForestClassifier -a SVM -a NaiveBayesClassifier -d iris.csv -t class --cv 10
 
-    Save the comparison results to a Markdown file:
+    Compare algorithms across multiple datasets:
 
-    >>> tuiml experiment -a RandomForestClassifier -a SVM -d iris.csv -t class -o results.md -f markdown
-
-    Generate a statistical critical difference plot:
-
-    >>> tuiml experiment -a RandomForestClassifier -a SVM -a NaiveBayesClassifier -d iris.csv -t class --plot
+    >>> tuiml experiment -a SVM -a RandomForestClassifier -d iris -d wine -t target
     """
     try:
-        if verbose:
-            click.echo(f"Loading data from: {data}")
-
-        # Load data
-        from tuiml.datasets import load
-        dataset = load(data)
-        X = dataset.X
-        y = dataset.get_target(target)
+        from tuiml.datasets import load, load_dataset
+        import os
+        
+        datasets_dict = {}
+        for d in data:
+            if verbose:
+                click.echo(f"Loading data from: {d}")
+            try:
+                if os.path.exists(d):
+                    dataset = load(d)
+                else:
+                    dataset = load_dataset(d)
+                X = dataset.X
+                y = dataset.get_target(target)
+                datasets_dict[d] = (X, y)
+            except Exception as ex:
+                raise click.ClickException(f"Failed to load dataset '{d}': {ex}")
 
         # Build algorithm list
         algo_list = list(algorithms)
@@ -78,14 +83,14 @@ def experiment(algorithms, data, target, cv, metrics, output, format, plot, verb
         if verbose:
             click.echo(f"\nRunning experiment:")
             click.echo(f"  Algorithms: {', '.join(algo_list)}")
-            click.echo(f"  Dataset: {data} ({len(X)} samples)")
+            click.echo(f"  Datasets: {', '.join(data)}")
             click.echo(f"  Cross-validation: {cv} folds")
             click.echo(f"  Metrics: {metrics_list or 'auto'}")
 
         # Run experiment
         exp = tuiml.experiment(
             algorithms=algo_list,
-            datasets={data: (X, y)},
+            datasets=datasets_dict,
             cv=cv,
             metrics=metrics_list,
             verbose=1 if verbose else 0

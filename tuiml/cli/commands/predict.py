@@ -4,13 +4,15 @@ import click
 import tuiml
 
 @click.command()
-@click.argument('model_path', type=click.Path(exists=True))
-@click.argument('data', type=click.Path(exists=True))
+@click.argument('model_path', required=False, type=click.Path(exists=True))
+@click.argument('data', required=False, type=click.Path(exists=True))
+@click.option('--model-id', help='Model ID returned by tuiml train')
+@click.option('--steps', type=int, help='Number of forecast steps (timeseries only)')
 @click.option('--output', '-o', help='Output file for predictions (CSV)')
 @click.option('--format', '-f', type=click.Choice(['csv', 'json', 'npy']), default='csv',
               help='Output format (default: csv)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def predict(model_path, data, output, format, verbose):
+def predict(model_path, data, model_id, steps, output, format, verbose):
     """Make predictions with a trained model.
 
     This command loads a previously saved model and uses it to generate 
@@ -42,26 +44,39 @@ def predict(model_path, data, output, format, verbose):
     try:
         import numpy as np
         import pandas as pd
+        from tuiml.agent.tools import _load_model_from_disk
 
-        if verbose:
-            click.echo(f"Loading model from: {model_path}")
+        if not model_path and not model_id:
+            raise click.UsageError("Must provide either MODEL_PATH argument or --model-id option.")
 
-        # Load model
-        model = tuiml.load(model_path)
+        if model_id:
+            if verbose:
+                click.echo(f"Loading model from ID: {model_id}")
+            model = _load_model_from_disk(model_id=model_id)
+            if not model:
+                raise click.ClickException(f"Model ID '{model_id}' not found.")
+        else:
+            if verbose:
+                click.echo(f"Loading model from: {model_path}")
+            model = tuiml.load(model_path)
 
-        if verbose:
-            click.echo(f"Loading data from: {data}")
+        if not data and not steps:
+             raise click.UsageError("Must provide DATA argument or --steps option (for timeseries).")
 
-        # Load data
-        from tuiml.datasets import load
-        dataset = load(data)
-        X = dataset.X
+        if data:
+            if verbose:
+                click.echo(f"Loading data from: {data}")
+            from tuiml.datasets import load
+            dataset = load(data)
+            X = dataset.X
 
-        if verbose:
-            click.echo(f"Making predictions on {len(X)} samples...")
-
-        # Make predictions
-        predictions = tuiml.predict(model, X)
+            if verbose:
+                click.echo(f"Making predictions on {len(X)} samples...")
+            predictions = tuiml.predict(model, X)
+        else:
+            if verbose:
+                click.echo(f"Making predictions for {steps} steps...")
+            predictions = model.predict(steps)
 
         # Display summary
         click.echo("\n" + "="*50)

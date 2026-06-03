@@ -16,9 +16,10 @@ import tuiml
 @click.option('--preset', help='Preprocessing preset (minimal, fast, standard, full, imbalanced)')
 @click.option('--params', '-P', help='Algorithm parameters as JSON dict')
 @click.option('--output', '-o', help='Output file for results (JSON)')
+@click.option('--save-path', help='Custom path to save the trained model file')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
 def train(algorithm, data, target, preprocessing, feature_selection, cv, test_size,
-          metrics, preset, params, output, verbose):
+          metrics, preset, params, output, save_path, verbose):
     """Train a machine learning model with a complete workflow.
 
     This command enables you to build and train models directly from the terminal,
@@ -48,6 +49,8 @@ def train(algorithm, data, target, preprocessing, feature_selection, cv, test_si
         Model hyperparameters as a JSON-encoded dictionary string.
     output : str, optional
         Path to save the training results as a JSON file.
+    save_path : str, optional
+        Path to save the trained model file.
     verbose : bool, default=False
         Whether to enable verbose output for progress tracking.
 
@@ -123,6 +126,13 @@ def train(algorithm, data, target, preprocessing, feature_selection, cv, test_si
             click.echo("\nCross-Validation Results:")
             click.echo(f"  Mean: {result.cv_results.get('mean', 0):.4f}")
             click.echo(f"  Std: {result.cv_results.get('std', 0):.4f}")
+
+        # Save model if requested
+        if save_path:
+            import os
+            os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
+            tuiml.save(result.model, save_path)
+            click.echo(f"\nModel saved to: {save_path}")
 
         # Save results to file if requested
         if output:
