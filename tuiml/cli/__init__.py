@@ -24,6 +24,10 @@ from tuiml.cli.commands import (
     train, predict, evaluate, experiment, list_cmd,
     serve, setup, uninstall, info, update, mcp,
     status, trace, restart,
+    upload, save, stop_server, plot, profile, generate,
+    preprocess, select_features, test_statistics, tune,
+    read_data, get_skeleton, create_algorithm, delete_algorithm,
+    describe, read_algorithm, list_files, search_source, edit_algorithm
 )
 
 # Register commands
@@ -41,6 +45,25 @@ cli.add_command(mcp.mcp)
 cli.add_command(status.status)
 cli.add_command(trace.trace)
 cli.add_command(restart.restart)
+cli.add_command(upload.upload)
+cli.add_command(save.save)
+cli.add_command(stop_server.stop_server)
+cli.add_command(plot.plot)
+cli.add_command(profile.profile)
+cli.add_command(generate.generate)
+cli.add_command(preprocess.preprocess)
+cli.add_command(select_features.select_features)
+cli.add_command(test_statistics.test_statistics)
+cli.add_command(tune.tune)
+cli.add_command(read_data.read_data)
+cli.add_command(get_skeleton.get_skeleton)
+cli.add_command(create_algorithm.create_algorithm)
+cli.add_command(delete_algorithm.delete_algorithm)
+cli.add_command(describe.describe)
+cli.add_command(read_algorithm.read_algorithm)
+cli.add_command(list_files.list_files)
+cli.add_command(search_source.search_source)
+cli.add_command(edit_algorithm.edit_algorithm)
 
 def main():
     """Main entry point for CLI."""
