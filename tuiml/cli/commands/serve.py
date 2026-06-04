@@ -4,9 +4,8 @@ import click
 
 
 @click.command()
-@click.argument('model_path', type=click.Path(exists=True))
-@click.option('--model-id', '-m', default='default',
-              help='Identifier for the model (default: "default")')
+@click.option('--model-path', type=click.Path(exists=True), help='Path to saved model file (alternative to --model-id)')
+@click.option('--model-id', '-m', help='Identifier for the model from tuiml_train (alternative to --model-path)')
 @click.option('--host', '-H', default='127.0.0.1',
               help='Host to bind to (default: 127.0.0.1)')
 @click.option('--port', '-p', type=int, default=8000,
@@ -21,21 +20,19 @@ def serve(model_path, model_id, host, port, workers, reload):
     Load a trained model and serve predictions via HTTP endpoints.
     The server provides OpenAPI documentation at /docs.
 
-    MODEL_PATH is the path to a saved model file (e.g., model.pkl).
-
     Examples
     --------
     Serve a model on the default port:
 
-        $ tuiml serve model.pkl
+        $ tuiml serve --model-path model.pkl
 
     Serve on a custom port with a specific model ID:
 
-        $ tuiml serve classifier.pkl -m my_classifier -p 9000
+        $ tuiml serve --model-path classifier.pkl -m my_classifier -p 9000
 
     Serve with multiple workers for production:
 
-        $ tuiml serve model.pkl -w 4 -H 0.0.0.0
+        $ tuiml serve --model-path model.pkl -w 4 -H 0.0.0.0
 
     Endpoints
     ---------
@@ -56,14 +53,36 @@ def serve(model_path, model_id, host, port, workers, reload):
     """
     try:
         from tuiml.serving import serve as start_server
-        start_server(
-            model_path,
-            model_id=model_id,
-            host=host,
-            port=port,
-            workers=workers,
-            reload=reload,
-        )
+        from tuiml.agent.tools import _load_model_from_disk
+        
+        if not model_path and not model_id:
+            raise click.UsageError("Must provide either --model-path or --model-id option.")
+            
+        if model_id and not model_path:
+            model = _load_model_from_disk(model_id=model_id)
+            if not model:
+                raise click.ClickException(f"Model ID '{model_id}' not found.")
+            
+            start_server(
+                model,
+                model_id=model_id,
+                host=host,
+                port=port,
+                workers=workers,
+                reload=reload,
+            )
+        else:
+            if not model_id:
+                model_id = 'default'
+            
+            start_server(
+                model_path,
+                model_id=model_id,
+                host=host,
+                port=port,
+                workers=workers,
+                reload=reload,
+            )
     except ImportError as e:
         raise click.ClickException(
             f"{e}\n\nInstall required packages with:\n  pip install fastapi uvicorn"
