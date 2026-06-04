@@ -4,9 +4,9 @@ import click
 import tuiml
 
 @click.command()
-@click.argument('model_path', required=False, type=click.Path(exists=True))
-@click.argument('data', type=click.Path(exists=True))
-@click.argument('target')
+@click.option('--model-path', help='Path to saved model file (alternative to --model-id)', type=click.Path(exists=True))
+@click.option('--data', '-d', help='Path to data file or built-in dataset name')
+@click.option('--target', '-t', help='Target column name')
 @click.option('--model-id', help='Model ID returned by tuiml train')
 @click.option('--metrics', '-m', multiple=True, help='Metrics to compute (default: auto)')
 @click.option('--output', '-o', help='Output file for results (JSON)')

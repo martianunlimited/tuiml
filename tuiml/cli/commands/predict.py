@@ -4,8 +4,8 @@ import click
 import tuiml
 
 @click.command()
-@click.argument('model_path', required=False, type=click.Path(exists=True))
-@click.argument('data', required=False, type=click.Path(exists=True))
+@click.option('--model-path', help='Path to saved model file (alternative to --model-id)', type=click.Path(exists=True))
+@click.option('--data', '-d', help='Path to data file or built-in dataset name')
 @click.option('--model-id', help='Model ID returned by tuiml train')
 @click.option('--steps', type=int, help='Number of forecast steps (timeseries only)')
 @click.option('--output', '-o', help='Output file for predictions (CSV)')

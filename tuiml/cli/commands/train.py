@@ -5,9 +5,9 @@ import json
 import tuiml
 
 @click.command()
-@click.argument('algorithm')
-@click.argument('data', type=click.Path(exists=True))
-@click.argument('target')
+@click.option('--algorithm', '-a', required=True, help='Algorithm class name (e.g., RandomForestClassifier)')
+@click.option('--data', '-d', required=True, help='Path to data file or built-in dataset name (e.g., iris)')
+@click.option('--target', '-t', required=True, help='Target column name')
 @click.option('--preprocessing', '-p', multiple=True, help='Preprocessing steps (exact class names)')
 @click.option('--feature-selection', '-f', help='Feature selection method (exact class name)')
 @click.option('--cv', type=int, default=None, help='Number of cross-validation folds')
