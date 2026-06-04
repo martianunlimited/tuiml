@@ -5,9 +5,9 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('preprocess')
-@click.argument('data')
+@click.option('--data', type=str, required=True, help='Data file path or built-in dataset name')
 @click.option('--target', type=str, help='Target column name (excluded from preprocessing, re-appended to output)')
-@click.argument('steps')
+@click.option('--steps', type=str, required=True, help="Preprocessing steps as names or objects with params. Examples: ['StandardScaler', 'SimpleImputer'] or [{'name': 'SimpleImputer', 'strategy': 'median'}, 'MinMaxScaler'] (pass as JSON string)")
 @click.option('--save-as', type=str, help='Custom output file path (optional, defaults to temp file)')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')
 def preprocess(data, target, steps, save_as, json_output):

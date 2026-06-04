@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('get-skeleton')
-@click.argument('kind')
+@click.option('--kind', type=str, required=True, help='Task kind the new algorithm targets.')
 @click.option('--class-name', type=str, help="Python identifier for the new class, e.g. 'MyGradientBoosting'.")
 @click.option('--version', type=str, help="Initial semver, e.g. '1.0.0'.")
 @click.option('--description', type=str, help='One-line docstring for the class.')

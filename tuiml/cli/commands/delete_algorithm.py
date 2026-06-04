@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('delete-algorithm')
-@click.argument('name')
+@click.option('--name', type=str, required=True)
 @click.option('--version', type=str, help='If omitted, all versions are removed.')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')
 def delete_algorithm(name, version, json_output):

@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('search-source')
-@click.argument('query')
+@click.option('--query', type=str, required=True, help='Regex pattern to search for.')
 @click.option('--name', type=str, help='Scope search to one user algorithm by name. Omit to search all.')
 @click.option('--builtin/--no-builtin', default=True, help='Search built-in algorithm files.')
 @click.option('--user/--no-user', default=True, help='Search user-authored algorithm files.')

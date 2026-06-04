@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('plot')
-@click.argument('plot_type')
+@click.option('--plot-type', type=str, required=True, help='Type of plot to generate: - confusion_matrix: Heatmap of predicted vs actual classes (requires model_id + data + target) - roc_curve: ROC curve with AUC for binary classifiers (requires model_id + data + target) - pr_curve: Precision-Recall curve with AP for binary classifiers (requires model_id + data + target) - learning_curve: Training vs validation score over dataset sizes (requires algorithm + data + target) - tree: Decision tree structure visualization (requires model_id) - feature_importance: Bar chart of feature importances (requires model_id) - cd_diagram: Critical difference diagram for algorithm comparison (requires experiment_results) - boxplot_comparison: Box plot comparing algorithm scores (requires experiment_results) - heatmap: Heatmap of algorithm scores across datasets (requires experiment_results) - ranking_table: Ranking table of algorithms (requires experiment_results)')
 @click.option('--model-id', type=str, help='Model ID from tuiml_train (required for most plot types)')
 @click.option('--model-path', type=str, help='Path to saved model file (alternative to model_id)')
 @click.option('--data', type=str, help='Data file path or built-in dataset name (required for confusion_matrix, roc_curve, pr_curve, learning_curve)')

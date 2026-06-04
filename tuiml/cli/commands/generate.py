@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('generate')
-@click.argument('generator')
+@click.option('--generator', type=str, required=True, help='Generator class name')
 @click.option('--n-samples', type=int, help='Number of samples to generate')
 @click.option('--n-features', type=int, help='Number of features (not all generators support this)')
 @click.option('--n-classes', type=int, help='Number of classes (classification generators only)')

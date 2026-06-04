@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('describe')
-@click.argument('name')
+@click.option('--name', type=str, required=True, help="Component name (e.g., 'RandomForestClassifier', 'SimpleImputer', 'iris')")
 @click.option('--json-output', is_flag=True, help='Output raw JSON')
 def describe(name, json_output):
     """Get detailed information and parameter schema for any TuiML component."""

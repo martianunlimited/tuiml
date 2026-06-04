@@ -5,8 +5,8 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('save')
-@click.argument('model_id')
-@click.argument('destination')
+@click.option('--model-id', type=str, required=True, help='Model ID returned by tuiml_train')
+@click.option('--destination', type=str, required=True, help="Destination file path (e.g., './my_model.joblib', '/home/user/models/rf.joblib')")
 @click.option('--json-output', is_flag=True, help='Output raw JSON')
 def save(model_id, destination, json_output):
     """Copy a trained model to a custom path. Use this when the user wants to save or download a model to a specific location."""

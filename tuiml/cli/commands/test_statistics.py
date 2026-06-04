@@ -5,8 +5,8 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('test-statistics')
-@click.argument('test')
-@click.argument('results')
+@click.option('--test', type=str, required=True, help='Statistical test to run: - friedman: Non-parametric test for 3+ algorithms - nemenyi: Post-hoc pairwise test after Friedman - wilcoxon: Non-parametric pairwise test (2 algorithms) - paired_t: Parametric pairwise test (2 algorithms) - anova: Parametric test for 3+ groups - friedman_aligned: More powerful variant of Friedman - quade: Non-parametric test accounting for dataset difficulty')
+@click.option('--results', type=str, required=True, help="Algorithm CV scores: { 'AlgorithmName': [score1, score2, ...], ... } (pass as JSON string)")
 @click.option('--significance-level', type=float, help='Significance level (alpha), default 0.05')
 @click.option('--higher-better/--no-higher-better', default=True, help='Whether higher scores are better (default True)')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')

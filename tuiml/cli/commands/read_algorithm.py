@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('read-algorithm')
-@click.argument('name')
+@click.option('--name', type=str, required=True, help='Algorithm name (class name or directory name).')
 @click.option('--version', type=str, help="Specific version to read (e.g. '1.0.2'). Defaults to latest.")
 @click.option('--builtin/--no-builtin', default=False, help='Set true to read a built-in tuiml algorithm instead of a user algorithm.')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')

@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('profile')
-@click.argument('data')
+@click.option('--data', type=str, required=True, help="Data file path or built-in dataset name (e.g., 'iris', 'wine', '/path/to/data.csv')")
 @click.option('--target', type=str, help='Target column name (optional, used for class distribution)')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')
 def profile(data, target, json_output):

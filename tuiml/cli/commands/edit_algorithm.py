@@ -5,9 +5,9 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('edit-algorithm')
-@click.argument('name')
-@click.argument('old_string')
-@click.argument('new_string')
+@click.option('--name', type=str, required=True, help='User algorithm name (directory name / class name).')
+@click.option('--old-string', type=str, required=True, help='The exact text to find and replace. Must be unique in the file.')
+@click.option('--new-string', type=str, required=True, help='The replacement text.')
 @click.option('--version', type=str, help='Target a specific version. Defaults to latest.')
 @click.option('--bump-version/--no-bump-version', default=False, help='Save the edit as a new patch version instead of overwriting the current one.')
 @click.option('--json-output', is_flag=True, help='Output raw JSON')

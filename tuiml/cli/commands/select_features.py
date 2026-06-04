@@ -5,9 +5,9 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('select-features')
-@click.argument('data')
-@click.argument('target')
-@click.argument('method')
+@click.option('--data', type=str, required=True, help='Data file path or built-in dataset name')
+@click.option('--target', type=str, required=True, help='Target column name')
+@click.option('--method', type=str, required=True, help='Feature selection method')
 @click.option('--k', type=int, help='Number of top features to select (SelectKBestSelector)')
 @click.option('--threshold', type=float, help='Threshold for VarianceThresholdSelector or SelectThresholdSelector')
 @click.option('--method-params', type=str, help='Additional method-specific parameters (pass as JSON string)')

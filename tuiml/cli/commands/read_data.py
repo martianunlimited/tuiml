@@ -5,7 +5,7 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('read-data')
-@click.argument('data')
+@click.option('--data', type=str, required=True, help="Data file path or built-in dataset name (e.g., 'iris', '/tmp/tuiml_preprocessed/file.csv')")
 @click.option('--n-rows', type=int, help='Number of rows to return (default: 10, max: 100)')
 @click.option('--mode', type=str, help="How to select rows: - head: First n_rows (default) - tail: Last n_rows - sample: Random sample of n_rows - indices: Specific row indices (provide 'indices' parameter)")
 @click.option('--indices', type=str, help="Specific row indices to return (only used when mode='indices') (pass as JSON string)")

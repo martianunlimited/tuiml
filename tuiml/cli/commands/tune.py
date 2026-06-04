@@ -5,11 +5,11 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('tune')
-@click.argument('algorithm')
-@click.argument('data')
-@click.argument('target')
-@click.argument('method')
-@click.argument('param_grid')
+@click.option('--algorithm', type=str, required=True, help="Algorithm class name (e.g., 'RandomForestClassifier', 'SVM')")
+@click.option('--data', type=str, required=True, help='Data file path or built-in dataset name')
+@click.option('--target', type=str, required=True, help='Target column name')
+@click.option('--method', type=str, required=True, help="Tuning method: 'grid' (exhaustive), 'random' (sampled), 'bayesian' (GP-based)")
+@click.option('--param-grid', type=str, required=True, help="Parameter search space. For grid: {'param': [val1, val2]}. For random/bayesian: {'param': [low, high, 'int']} or {'param': [val1, val2]}. (pass as JSON string)")
 @click.option('--cv', type=int, help='Number of cross-validation folds')
 @click.option('--scoring', type=str, help="Scoring metric (e.g., 'accuracy', 'r2', 'neg_mse')")
 @click.option('--n-iter', type=int, help='Number of iterations for random search')

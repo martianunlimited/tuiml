@@ -5,9 +5,9 @@ import json
 from tuiml.agent.tools import execute_tool
 
 @click.command('create-algorithm')
-@click.argument('name')
-@click.argument('kind')
-@click.argument('code')
+@click.option('--name', type=str, required=True, help='Directory name — usually equal to the class name (Python identifier).')
+@click.option('--kind', type=str, required=True, help="Task kind. Must match the imported class's base type.")
+@click.option('--code', type=str, required=True, help='Full Python source. Must define exactly one @classifier or @regressor class.')
 @click.option('--version', type=str, help="Semver for this submission, e.g. '1.0.0', '1.0.1'.")
 @click.option('--description', type=str, help='Optional short description (falls back to the class docstring).')
 @click.option('--force/--no-force', default=False, help='Overwrite an existing file at <name>/<version>/. Bump the version instead when possible.')
