@@ -482,24 +482,26 @@ class MultilayerPerceptronClassifier(Classifier):
         self._rng = np.random.RandomState(self.random_state)
         layer_sizes = [self._n_features] + self.hidden_layers + [n_classes]
         self._initialize_weights(layer_sizes)
-
+ 
         # Initialize momentum terms
-        weight_velocities = [np.zeros_like(w) for w in self.weights_]
-        bias_velocities = [np.zeros_like(b) for b in self.biases_]
-
+        self.weight_velocities_ = [np.zeros_like(w) for w in self.weights_]
+        self.bias_velocities_ = [np.zeros_like(b) for b in self.biases_]
+ 
         # Training loop
         lr = self.learning_rate
         best_loss = np.inf
         epochs_without_improvement = 0
-
+        self._epoch = 0
+ 
         for epoch in range(self.max_epochs):
+            self._epoch = epoch
             # Forward pass
             activations, zs = self._forward(X_scaled)
-
+ 
             # Compute loss
             predictions = activations[-1]
             loss = -np.mean(np.sum(y_onehot * np.log(predictions + 1e-10), axis=1))
-
+ 
             # Early stopping check
             if loss < best_loss:
                 best_loss = loss
@@ -508,26 +510,106 @@ class MultilayerPerceptronClassifier(Classifier):
                 epochs_without_improvement += 1
                 if epochs_without_improvement >= self.validation_threshold:
                     break
-
+ 
             # Backward pass
             weight_grads, bias_grads = self._backward(X_scaled, y_onehot,
                                                        activations, zs)
-
+ 
             # Update weights with momentum
             for i in range(len(self.weights_)):
-                weight_velocities[i] = (self.momentum * weight_velocities[i] -
-                                        lr * weight_grads[i])
-                bias_velocities[i] = (self.momentum * bias_velocities[i] -
-                                      lr * bias_grads[i])
-
-                self.weights_[i] += weight_velocities[i]
-                self.biases_[i] += bias_velocities[i]
-
+                self.weight_velocities_[i] = (self.momentum * self.weight_velocities_[i] -
+                                              lr * weight_grads[i])
+                self.bias_velocities_[i] = (self.momentum * self.bias_velocities_[i] -
+                                            lr * bias_grads[i])
+ 
+                self.weights_[i] += self.weight_velocities_[i]
+                self.biases_[i] += self.bias_velocities_[i]
+ 
             # Learning rate decay
             if self.decay:
                 lr = self.learning_rate / (1 + epoch * 0.01)
-
+ 
         self._is_fitted = True
+        return self
+
+    def partial_fit(self, X: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> "MultilayerPerceptronClassifier":
+        """Incrementally fit the MultilayerPerceptronClassifier classifier on a batch of samples.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Incremental training features.
+        y : np.ndarray of shape (n_samples,)
+            Incremental target labels.
+        classes : np.ndarray of shape (n_classes,), default=None
+            List of all classes expected. Must be provided at the first call,
+            can be omitted afterwards.
+
+        Returns
+        -------
+        self : MultilayerPerceptronClassifier
+            Returns the updated instance.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        n_samples, n_features = X.shape
+
+        if not self._is_fitted:
+            self._n_features = n_features
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            else:
+                self.classes_ = np.unique(y)
+            n_classes = len(self.classes_)
+
+            # Initialize mean and std
+            self._mean = np.mean(X, axis=0)
+            self._std = np.std(X, axis=0)
+            self._std[self._std == 0] = 1.0
+
+            # Initialize network weights/biases
+            self._rng = np.random.RandomState(self.random_state)
+            layer_sizes = [self._n_features] + self.hidden_layers + [n_classes]
+            self._initialize_weights(layer_sizes)
+
+            # Initialize velocity/momentum terms
+            self.weight_velocities_ = [np.zeros_like(w) for w in self.weights_]
+            self.bias_velocities_ = [np.zeros_like(b) for b in self.biases_]
+            self._epoch = 0
+            self._is_fitted = True
+        else:
+            n_classes = len(self.classes_)
+
+        # Scale X using stored mean/std
+        X_scaled = (X - self._mean) / self._std
+
+        # One-hot encode targets
+        class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+        y_idx = np.array([class_to_idx[c] for c in y])
+        y_onehot = np.zeros((n_samples, n_classes))
+        y_onehot[np.arange(n_samples), y_idx] = 1
+
+        # Perform one epoch of training (single forward/backward pass and update)
+        activations, zs = self._forward(X_scaled)
+        weight_grads, bias_grads = self._backward(X_scaled, y_onehot, activations, zs)
+
+        lr = self.learning_rate
+        if self.decay:
+            lr = self.learning_rate / (1 + self._epoch * 0.01)
+
+        # Update weights with momentum
+        for i in range(len(self.weights_)):
+            self.weight_velocities_[i] = (self.momentum * self.weight_velocities_[i] -
+                                          lr * weight_grads[i])
+            self.bias_velocities_[i] = (self.momentum * self.bias_velocities_[i] -
+                                        lr * bias_grads[i])
+            self.weights_[i] += self.weight_velocities_[i]
+            self.biases_[i] += self.bias_velocities_[i]
+
+        self._epoch += 1
         return self
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -1010,22 +1092,24 @@ class MultilayerPerceptronRegressor(Regressor):
         self._rng = np.random.RandomState(self.random_state)
         layer_sizes = [self._n_features] + self.hidden_layers + [1]
         self._initialize_weights(layer_sizes)
-
+ 
         # Initialize momentum terms
-        weight_velocities = [np.zeros_like(w) for w in self.weights_]
-        bias_velocities = [np.zeros_like(b) for b in self.biases_]
-
+        self.weight_velocities_ = [np.zeros_like(w) for w in self.weights_]
+        self.bias_velocities_ = [np.zeros_like(b) for b in self.biases_]
+ 
         # Training loop
         lr = self.learning_rate
         best_loss = np.inf
         epochs_without_improvement = 0
-
+        self._epoch = 0
+ 
         for epoch in range(self.max_epochs):
+            self._epoch = epoch
             activations, zs = self._forward(X_scaled)
-
+ 
             # Compute MSE loss
             loss = np.mean((activations[-1] - y_scaled) ** 2)
-
+ 
             # Early stopping
             if loss < best_loss:
                 best_loss = loss
@@ -1034,25 +1118,98 @@ class MultilayerPerceptronRegressor(Regressor):
                 epochs_without_improvement += 1
                 if epochs_without_improvement >= self.validation_threshold:
                     break
-
+ 
             # Backward pass
             weight_grads, bias_grads = self._backward(
                 X_scaled, y_scaled, activations, zs)
-
+ 
             # Update weights with momentum
             for i in range(len(self.weights_)):
-                weight_velocities[i] = (self.momentum * weight_velocities[i] -
-                                        lr * weight_grads[i])
-                bias_velocities[i] = (self.momentum * bias_velocities[i] -
-                                      lr * bias_grads[i])
-                self.weights_[i] += weight_velocities[i]
-                self.biases_[i] += bias_velocities[i]
-
+                self.weight_velocities_[i] = (self.momentum * self.weight_velocities_[i] -
+                                              lr * weight_grads[i])
+                self.bias_velocities_[i] = (self.momentum * self.bias_velocities_[i] -
+                                            lr * bias_grads[i])
+                self.weights_[i] += self.weight_velocities_[i]
+                self.biases_[i] += self.bias_velocities_[i]
+ 
             # Learning rate decay
             if self.decay:
                 lr = self.learning_rate / (1 + epoch * 0.01)
-
+ 
         self._is_fitted = True
+        return self
+
+    def partial_fit(self, X: np.ndarray, y: np.ndarray) -> "MultilayerPerceptronRegressor":
+        """Incrementally fit the MultilayerPerceptronRegressor regressor on a batch of samples.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Incremental training features.
+        y : np.ndarray of shape (n_samples,)
+            Incremental target values.
+
+        Returns
+        -------
+        self : MultilayerPerceptronRegressor
+            Returns the updated instance.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        if y.ndim == 1:
+            y = y.reshape(-1, 1)
+
+        n_samples, n_features = X.shape
+
+        if not self._is_fitted:
+            self._n_features = n_features
+
+            # Initialize mean and std for features
+            self._X_mean = np.mean(X, axis=0)
+            self._X_std = np.std(X, axis=0)
+            self._X_std[self._X_std == 0] = 1.0
+
+            # Initialize mean and std for targets
+            self._y_mean = np.mean(y, axis=0)
+            self._y_std = np.std(y, axis=0)
+            if self._y_std == 0:
+                self._y_std = 1.0
+
+            # Initialize network (single output neuron)
+            self._rng = np.random.RandomState(self.random_state)
+            layer_sizes = [self._n_features] + self.hidden_layers + [1]
+            self._initialize_weights(layer_sizes)
+
+            # Initialize momentum terms
+            self.weight_velocities_ = [np.zeros_like(w) for w in self.weights_]
+            self.bias_velocities_ = [np.zeros_like(b) for b in self.biases_]
+            self._epoch = 0
+            self._is_fitted = True
+
+        # Scale X and y using stored statistics
+        X_scaled = (X - self._X_mean) / self._X_std
+        y_scaled = (y - self._y_mean) / self._y_std
+
+        # Perform one epoch of training (single forward/backward pass and update)
+        activations, zs = self._forward(X_scaled)
+        weight_grads, bias_grads = self._backward(X_scaled, y_scaled, activations, zs)
+
+        lr = self.learning_rate
+        if self.decay:
+            lr = self.learning_rate / (1 + self._epoch * 0.01)
+
+        # Update weights with momentum
+        for i in range(len(self.weights_)):
+            self.weight_velocities_[i] = (self.momentum * self.weight_velocities_[i] -
+                                          lr * weight_grads[i])
+            self.bias_velocities_[i] = (self.momentum * self.bias_velocities_[i] -
+                                        lr * bias_grads[i])
+            self.weights_[i] += self.weight_velocities_[i]
+            self.biases_[i] += self.bias_velocities_[i]
+
+        self._epoch += 1
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

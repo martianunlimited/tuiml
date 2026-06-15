@@ -516,6 +516,52 @@ class KNearestNeighborsClassifier(Classifier):
         self._is_fitted = True
         return self
 
+    def partial_fit(self, X: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> "KNearestNeighborsClassifier":
+        """Incrementally add training samples to the classifier.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Incremental training features.
+        y : np.ndarray of shape (n_samples,)
+            Incremental target labels.
+        classes : np.ndarray of shape (n_classes,), default=None
+            List of all classes expected. Can be omitted if model is already fitted.
+
+        Returns
+        -------
+        self : KNearestNeighborsClassifier
+            Returns the instance itself.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if not self._is_fitted:
+            self.X_train_ = X
+            self.y_train_ = y
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            else:
+                self.classes_ = np.unique(y)
+            self._n_features = X.shape[1]
+            self._is_fitted = True
+        else:
+            self.X_train_ = np.vstack([self.X_train_, X])
+            self.y_train_ = np.concatenate([self.y_train_, y])
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            else:
+                self.classes_ = np.unique(self.y_train_)
+
+        # Build/rebuild search structure
+        self.search_ = self._create_search()
+        self.search_.build(self.X_train_)
+
+        return self
+
     def _batch_predict_core(self, X: np.ndarray):
         """Batch neighbor query + weight computation via C++.
 
@@ -1087,6 +1133,42 @@ class KNearestNeighborsRegressor(Regressor):
         self.search_.build(X)
 
         self._is_fitted = True
+        return self
+
+    def partial_fit(self, X: np.ndarray, y: np.ndarray) -> "KNearestNeighborsRegressor":
+        """Incrementally add training samples to the regressor.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Incremental training features.
+        y : np.ndarray of shape (n_samples,)
+            Incremental target values.
+
+        Returns
+        -------
+        self : KNearestNeighborsRegressor
+            Returns the instance itself.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=float)
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if not self._is_fitted:
+            self.X_train_ = X
+            self.y_train_ = y
+            self._n_features = X.shape[1]
+            self._is_fitted = True
+        else:
+            self.X_train_ = np.vstack([self.X_train_, X])
+            self.y_train_ = np.concatenate([self.y_train_, y])
+
+        # Build/rebuild search structure
+        self.search_ = self._create_search()
+        self.search_.build(self.X_train_)
+
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

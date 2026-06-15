@@ -3,11 +3,56 @@
 import click
 import json
 import tuiml
+from tuiml.agent.tools import execute_tool
 
-@click.command()
-@click.option('--algorithm', '-a', required=True, help='Algorithm class name (e.g., RandomForestClassifier)')
-@click.option('--data', '-d', required=True, help='Path to data file or built-in dataset name (e.g., iris)')
-@click.option('--target', '-t', required=True, help='Target column name')
+def parse_extra_args(args):
+    """Parse extra command-line arguments into a dictionary.
+    
+    Examples:
+        ['--kfold', '10', '--strategy', 'mean', '--cv'] -> {'kfold': 10, 'strategy': 'mean', 'cv': True}
+    """
+    kwargs = {}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg.startswith('--'):
+            key = arg[2:]
+        elif arg.startswith('-'):
+            key = arg[1:]
+        else:
+            key = arg
+            kwargs[key] = True
+            i += 1
+            continue
+
+        if i + 1 < len(args) and not args[i+1].startswith('-'):
+            val = args[i+1]
+            if val.lower() == 'true':
+                val = True
+            elif val.lower() == 'false':
+                val = False
+            else:
+                try:
+                    val = int(val)
+                except ValueError:
+                    try:
+                        val = float(val)
+                    except ValueError:
+                        pass
+            kwargs[key] = val
+            i += 2
+        else:
+            kwargs[key] = True
+            i += 1
+    return kwargs
+
+@click.command('train', context_settings=dict(
+    ignore_unknown_options=True,
+    allow_extra_args=True,
+))
+@click.option('--algorithm', '-a', help='Algorithm class name (e.g., RandomForestClassifier)')
+@click.option('--data', '-d', help='Path to data file or built-in dataset name (e.g., iris)')
+@click.option('--target', '-t', help='Target column name')
 @click.option('--preprocessing', '-p', multiple=True, help='Preprocessing steps (exact class names)')
 @click.option('--feature-selection', '-f', help='Feature selection method (exact class name)')
 @click.option('--cv', type=int, default=None, help='Number of cross-validation folds')
@@ -17,56 +62,18 @@ import tuiml
 @click.option('--params', '-P', help='Algorithm parameters as JSON dict')
 @click.option('--output', '-o', help='Output file for results (JSON)')
 @click.option('--save-path', help='Custom path to save the trained model file')
+@click.option('--stage', help="Atomic training stage: 'init', 'fit', 'partial_fit', 'cross_validate'")
+@click.option('--model-id', help='Unique identifier of a previously initialized/saved model')
+@click.option('--model-path', help='File path of a previously initialized/saved model')
+@click.option('--json-output', is_flag=True, help='Output raw JSON')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def train(algorithm, data, target, preprocessing, feature_selection, cv, test_size,
-          metrics, preset, params, output, save_path, verbose):
-    """Train a machine learning model with a complete workflow.
+@click.pass_context
+def train(ctx, algorithm, data, target, preprocessing, feature_selection, cv, test_size,
+          metrics, preset, params, output, save_path, stage, model_id, model_path, json_output, verbose):
+    """Train a machine learning model with a complete workflow or an atomic stage.
 
     This command enables you to build and train models directly from the terminal,
     supporting preprocessing, feature selection, and multiple evaluation strategies.
-
-    Parameters
-    ----------
-    algorithm : str
-        Algorithm class name (e.g., ``"RandomForestClassifier"``, ``"SVM"``).
-    data : str
-        Path to the training data file (CSV, ARFF, etc.).
-    target : str
-        Name of the target column in the dataset.
-    preprocessing : list of str, optional
-        One or more preprocessing steps to apply (exact class names).
-    feature_selection : str, optional
-        Feature selection method to use (exact class name).
-    cv : int, optional
-        Number of cross-validation folds. If not set, holdout is used.
-    test_size : float, default=0.2
-        Proportion of data to use for testing in holdout evaluation.
-    metrics : list of str, optional
-        Metrics to compute during evaluation.
-    preset : str, optional
-        Preprocessing preset name (e.g., ``"standard"``, ``"full"``).
-    params : str, optional
-        Model hyperparameters as a JSON-encoded dictionary string.
-    output : str, optional
-        Path to save the training results as a JSON file.
-    save_path : str, optional
-        Path to save the trained model file.
-    verbose : bool, default=False
-        Whether to enable verbose output for progress tracking.
-
-    Examples
-    --------
-    Simple training with default parameters:
-
-    >>> tuiml train RandomForestClassifier iris.csv class
-
-    Training with cross-validation and preprocessing:
-
-    >>> tuiml train SVM data.csv target --cv 10 -p SimpleImputer -p MinMaxScaler
-
-    Training with specific model parameters as JSON:
-
-    >>> tuiml train RandomForestClassifier iris.csv class --params '{"n_trees": 100, "max_depth": 10}'
     """
     try:
         # Parse algorithm parameters
@@ -83,72 +90,103 @@ def train(algorithm, data, target, preprocessing, feature_selection, cv, test_si
         # Build metrics list
         metrics_list = list(metrics) if metrics else None
 
-        if verbose:
-            click.echo(f"Training {algorithm} on {data}...")
-            click.echo(f"  Target: {target}")
-            if cv:
-                click.echo(f"  Cross-validation: {cv} folds")
-            else:
-                click.echo(f"  Test size: {test_size}")
-            if preproc_list:
-                click.echo(f"  Preprocessing: {preproc_list}")
-            if preset:
-                click.echo(f"  Preset: {preset}")
-            if algo_params:
-                click.echo(f"  Parameters: {algo_params}")
+        extra_kwargs = parse_extra_args(ctx.args)
 
-        # Train model
-        result = tuiml.train(
-            algorithm=algorithm,
-            data=data,
-            target=target,
-            preprocessing=preproc_list,
-            feature_selection=feature_selection,
-            cv=cv,
-            test_size=test_size,
-            metrics=metrics_list,
-            preset=preset,
-            verbose=verbose,
-            **algo_params
-        )
+        if verbose:
+            click.echo("Running training workflow...")
+            if stage:
+                click.echo(f"  Stage: {stage}")
+            if algorithm:
+                click.echo(f"  Algorithm: {algorithm}")
+            if data:
+                click.echo(f"  Data: {data}")
+            if target:
+                click.echo(f"  Target: {target}")
+            if model_id:
+                click.echo(f"  Model ID: {model_id}")
+            if model_path:
+                click.echo(f"  Model Path: {model_path}")
+            if extra_kwargs:
+                click.echo(f"  Stage arguments: {extra_kwargs}")
+
+        # Construct kwargs for tuiml_train
+        kwargs = {
+            'algorithm': algorithm,
+            'data': data,
+            'target': target,
+            'preprocessing': preproc_list,
+            'feature_selection': feature_selection,
+            'cv': cv,
+            'test_size': test_size,
+            'metrics': metrics_list,
+            'preset': preset,
+            'algorithm_params': algo_params,
+            'save_path': save_path,
+            'stage': stage,
+            'model_id': model_id,
+            'model_path': model_path,
+            'stage_kwargs': extra_kwargs if extra_kwargs else None
+        }
+        # Filter None values
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+        # Train model using agent tools backend
+        result = execute_tool('tuiml_train', **kwargs)
+
+        if result.get('status') == 'error':
+            raise click.ClickException(result.get('error'))
+
+        if json_output:
+            click.echo(json.dumps(result, indent=2, default=str))
+            return
 
         # Display results
         click.echo("\n" + "="*50)
         click.echo("Training Results")
         click.echo("="*50)
 
-        if result.metrics:
+        if stage:
+            click.echo(f"\nStage '{stage}' completed successfully.")
+            if result.get('model_id'):
+                click.echo(f"Model ID: {result.get('model_id')}")
+            if result.get('model_path'):
+                click.echo(f"Model Path: {result.get('model_path')}")
+            if result.get('model_class'):
+                click.echo(f"Model Class: {result.get('model_class')}")
+        else:
+            if result.get('model_id'):
+                click.echo(f"Model ID: {result.get('model_id')}")
+            if result.get('model_path'):
+                click.echo(f"Model Path: {result.get('model_path')}")
+            if result.get('model_class'):
+                click.echo(f"Model Class: {result.get('model_class')}")
+
+        metrics_data = result.get('metrics')
+        if metrics_data:
             click.echo("\nMetrics:")
-            for metric_name, value in result.metrics.items():
-                click.echo(f"  {metric_name}: {value:.4f}")
+            for metric_name, value in metrics_data.items():
+                if isinstance(value, float):
+                    click.echo(f"  {metric_name}: {value:.4f}")
+                else:
+                    click.echo(f"  {metric_name}: {value}")
 
-        if result.cv_results:
+        cv_results = result.get('cv_results')
+        if cv_results:
             click.echo("\nCross-Validation Results:")
-            click.echo(f"  Mean: {result.cv_results.get('mean', 0):.4f}")
-            click.echo(f"  Std: {result.cv_results.get('std', 0):.4f}")
-
-        # Save model if requested
-        if save_path:
-            import os
-            os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
-            tuiml.save(result.model, save_path)
-            click.echo(f"\nModel saved to: {save_path}")
+            scores = cv_results.get('scores', {})
+            for metric, val_list in scores.items():
+                import numpy as np
+                mean_val = np.mean(val_list) if val_list else 0.0
+                std_val = np.std(val_list) if val_list else 0.0
+                click.echo(f"  {metric}: {mean_val:.4f} (+/- {std_val:.4f})")
 
         # Save results to file if requested
         if output:
-            output_data = {
-                'algorithm': algorithm,
-                'data': data,
-                'target': target,
-                'metrics': result.metrics,
-                'cv_results': result.cv_results,
-                'metadata': result.metadata
-            }
             with open(output, 'w') as f:
-                json.dump(output_data, f, indent=2)
+                json.dump(result, f, indent=2, default=str)
             click.echo(f"\nResults saved to: {output}")
 
-        click.echo("\n✓ Training complete!")
+        click.echo("\n✓ Complete!")
 
     except Exception as e:
         if verbose:

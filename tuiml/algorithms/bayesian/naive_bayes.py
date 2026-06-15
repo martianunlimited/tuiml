@@ -332,6 +332,8 @@ class NaiveBayesClassifier(Classifier):
         # Find classes and compute priors
         self.classes_, class_counts = np.unique(y, return_counts=True)
         n_classes = len(self.classes_)
+        self.class_counts_ = class_counts
+        self.n_samples_seen_ = n_samples
 
         # Apply Laplace smoothing to priors if requested
         if self.use_laplace:
@@ -363,6 +365,76 @@ class NaiveBayesClassifier(Classifier):
             self.estimators_.append(class_estimators)
 
         self._is_fitted = True
+        return self
+
+    def partial_fit(self, X: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> "NaiveBayesClassifier":
+        """Incrementally fit the Naive Bayes classifier on a batch of samples.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Incremental training features.
+        y : array-like of shape (n_samples,)
+            Incremental target labels.
+        classes : array-like of shape (n_classes,), default=None
+            List of all classes expected. Must be provided at the first call,
+            can be omitted afterwards.
+
+        Returns
+        -------
+        self : NaiveBayesClassifier
+            Returns the instance itself.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        n_samples, n_features = X.shape
+
+        if not self._is_fitted:
+            self._n_features = n_features
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            else:
+                self.classes_ = np.unique(y)
+            n_classes = len(self.classes_)
+            
+            self.class_counts_ = np.zeros(n_classes)
+            self.n_samples_seen_ = 0
+            
+            self.estimators_ = []
+            for _ in range(n_classes):
+                class_estimators = []
+                for _ in range(n_features):
+                    class_estimators.append(self._create_estimator())
+                self.estimators_.append(class_estimators)
+            
+            self._is_fitted = True
+        else:
+            n_classes = len(self.classes_)
+
+        class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+
+        for i in range(n_samples):
+            c = y[i]
+            if c not in class_to_idx:
+                raise ValueError(f"Class {c} was not declared in classes parameter at initialization.")
+            class_idx = class_to_idx[c]
+            self.class_counts_[class_idx] += 1
+            self.n_samples_seen_ += 1
+
+            for feature_idx in range(n_features):
+                val = X[i, feature_idx]
+                if not np.isnan(val):
+                    self.estimators_[class_idx][feature_idx].add_value(val)
+
+        if self.use_laplace:
+            self.class_prior_ = (self.class_counts_ + 1) / (self.n_samples_seen_ + n_classes)
+        else:
+            self.class_prior_ = self.class_counts_ / self.n_samples_seen_
+
         return self
 
     def _calculate_log_likelihood(self, X: np.ndarray) -> np.ndarray:

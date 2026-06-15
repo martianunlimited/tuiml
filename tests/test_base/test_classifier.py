@@ -124,3 +124,33 @@ class TestAlgorithmRegistry:
         
         results = AlgorithmRegistry.search("tree")
         assert isinstance(results, list)
+
+class TestUpdateableClusterer:
+    """Tests for the UpdateableClusterer base class."""
+
+    def test_partial_fit_delegates_to_update(self):
+        """Test that calling partial_fit on UpdateableClusterer delegates to update."""
+        from tuiml.base.algorithms import UpdateableClusterer
+
+        # Create a concrete mock class for testing
+        class MockUpdateableClusterer(UpdateableClusterer):
+            def __init__(self):
+                super().__init__()
+                self.update_called = False
+
+            def fit(self, X, y=None):
+                self._is_fitted = True
+                return self
+
+            def predict(self, X):
+                return np.zeros(len(X))
+
+            def update(self, X):
+                self.update_called = True
+                return self
+
+        clusterer = MockUpdateableClusterer()
+        assert clusterer.update_called is False
+        clusterer.partial_fit(np.array([[1, 2]]))
+        assert clusterer.update_called is True
+        assert clusterer._is_fitted is True

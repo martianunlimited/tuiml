@@ -278,6 +278,78 @@ class PerceptronClassifier(Classifier):
         self._is_fitted = True
         return self
 
+    def partial_fit(self, X: np.ndarray, y: np.ndarray, classes: Optional[np.ndarray] = None) -> "PerceptronClassifier":
+        """Incrementally fit the PerceptronClassifier classifier on a batch of samples.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Incremental training features.
+        y : np.ndarray of shape (n_samples,)
+            Incremental target labels.
+        classes : np.ndarray of shape (n_classes,), default=None
+            List of all classes expected. Must be provided at the first call,
+            can be omitted afterwards.
+
+        Returns
+        -------
+        self : PerceptronClassifier
+            Returns the updated instance.
+        """
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        n_samples, n_features = X.shape
+
+        if not self._is_fitted:
+            self._n_features = n_features
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            else:
+                self.classes_ = np.unique(y)
+            n_classes = len(self.classes_)
+
+            self._class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+            
+            # Initialize weights and bias
+            self.weights_ = np.zeros((n_classes, self._n_features))
+            self.bias_ = np.zeros(n_classes)
+            self.n_iter_ = 0
+            self._is_fitted = True
+        else:
+            self._n_features = n_features
+
+        y_idx = np.array([self._class_to_idx[c] for c in y])
+        rng = np.random.RandomState(self.random_state)
+
+        # Shuffle if requested
+        if self.shuffle:
+            indices = rng.permutation(n_samples)
+            X_shuffled = X[indices]
+            y_shuffled = y_idx[indices]
+        else:
+            X_shuffled = X
+            y_shuffled = y_idx
+
+        # Process each sample (single pass/epoch over the batch)
+        for i in range(n_samples):
+            xi = X_shuffled[i]
+            yi = y_shuffled[i]
+
+            scores = self.weights_ @ xi + self.bias_
+            y_pred = np.argmax(scores)
+
+            if y_pred != yi:
+                self.weights_[yi] += self.learning_rate * xi
+                self.bias_[yi] += self.learning_rate
+                self.weights_[y_pred] -= self.learning_rate * xi
+                self.bias_[y_pred] -= self.learning_rate
+
+        self.n_iter_ += 1
+        return self
+
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         """Compute decision scores for samples.
 
