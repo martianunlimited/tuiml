@@ -114,6 +114,7 @@ OUTPUT_SCHEMAS = {
                 "description": "Name of the trained model class"
             },
             "metadata": {"type": "object"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -158,7 +159,8 @@ OUTPUT_SCHEMAS = {
             "cv_folds": {"type": "integer"},
             "error": {"type": "string"},
             "suggested_metrics": {"type": "array", "items": {"type": "string"}},
-            "algorithm_types": {"type": "array", "items": {"type": "string"}}
+            "algorithm_types": {"type": "array", "items": {"type": "string"}},
+            "random_seed": {"type": "integer"}
         },
         "required": ["status"]
     },
@@ -319,6 +321,7 @@ OUTPUT_SCHEMAS = {
             "feature_names": {"type": "array", "items": {"type": "string"}},
             "target_names": {"type": "array", "items": {"type": "string"}},
             "preview": {"type": "object"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -372,6 +375,7 @@ OUTPUT_SCHEMAS = {
             "cv_results": {"type": "object"},
             "model_id": {"type": "string"},
             "model_path": {"type": "string"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -510,6 +514,10 @@ WORKFLOW_TOOLS = {
                 "save_path": {
                     "type": "string",
                     "description": "Custom path to save the model file (optional). If omitted, saved to temp directory."
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "description": "Random seed for reproducibility"
                 }
             },
             "required": ["algorithm", "data"]
@@ -619,6 +627,10 @@ WORKFLOW_TOOLS = {
                         "- Clustering: ['silhouette_score', 'calinski_harabasz_score', 'davies_bouldin_score']\n"
                         "If omitted, appropriate metrics are automatically selected based on algorithm type."
                     )
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "description": "Random seed for reproducibility"
                 }
             },
             "required": ["algorithms", "data", "target"]
@@ -881,7 +893,7 @@ WORKFLOW_TOOLS = {
                     "type": "number",
                     "description": "Noise level (regression generators only)"
                 },
-                "random_state": {
+                "random_seed": {
                     "type": "integer",
                     "description": "Random seed for reproducibility"
                 },
@@ -1084,7 +1096,7 @@ WORKFLOW_TOOLS = {
                     "default": 50,
                     "description": "Number of iterations for Bayesian search"
                 },
-                "random_state": {
+                "random_seed": {
                     "type": "integer",
                     "description": "Random seed for reproducibility"
                 }
@@ -2647,7 +2659,9 @@ def execute_plot(**kwargs) -> Dict[str, Any]:
             n_splits = 5
             train_fractions = np.linspace(0.1, 1.0, 10)
             n_samples = len(dataset.y)
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=seed if seed is not None else 42)
 
             all_train_sizes = []
             all_train_scores = []  # shape: (n_sizes, n_splits)
@@ -2997,6 +3011,9 @@ def execute_generate_data(**kwargs) -> Dict[str, Any]:
         # Build constructor params
         params = {}
         extra_params = kwargs.get('generator_params', {})
+        if 'random_seed' in kwargs:
+            kwargs['random_state'] = kwargs.pop('random_seed')
+            
         for key in ('n_samples', 'n_features', 'n_classes', 'n_clusters', 'noise', 'random_state'):
             if key in kwargs and kwargs[key] is not None:
                 params[key] = kwargs[key]
@@ -3368,7 +3385,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
         param_grid = kwargs['param_grid']
         cv = kwargs.get('cv', 5)
         scoring = kwargs.get('scoring', 'accuracy')
-        random_state = kwargs.get('random_state')
+        random_seed = kwargs.get('random_seed')
 
         # Collect progress messages
         progress_log = []
@@ -3387,7 +3404,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 param_grid=param_grid,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         elif method == 'random':
@@ -3399,7 +3416,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 n_iter=n_iter,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         elif method == 'bayesian':
@@ -3411,7 +3428,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 n_iterations=n_iterations,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         else:
@@ -3502,7 +3519,9 @@ def execute_read_data(**kwargs) -> Dict[str, Any]:
         elif mode == 'tail':
             subset = df.tail(n_rows)
         elif mode == 'sample':
-            subset = df.sample(n=min(n_rows, len(df)), random_state=42)
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+            subset = df.sample(n=min(n_rows, len(df)), random_state=seed if seed is not None else 42)
         elif mode == 'indices':
             indices = kwargs.get('indices', [])
             indices = [i for i in indices if 0 <= i < len(df)]
@@ -4020,9 +4039,22 @@ def get_workflow_tools() -> Dict[str, Dict]:
 
 def execute_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """Execute a tool by name."""
+    random_seed = kwargs.pop('random_seed', None)
+    if random_seed is not None:
+        from tuiml.utils.seed import set_global_seed
+        set_global_seed(random_seed)
+        if tool_name in ('tuiml_tune', 'tuiml_generate_data'):
+            kwargs['random_seed'] = random_seed
+
     # Check workflow tools first
     if tool_name in TOOL_EXECUTORS:
-        return TOOL_EXECUTORS[tool_name](**kwargs)
+        result = TOOL_EXECUTORS[tool_name](**kwargs)
+        if isinstance(result, dict) and result.get('status') == 'success':
+            from tuiml.utils.seed import get_global_seed
+            effective_seed = random_seed if random_seed is not None else get_global_seed()
+            if effective_seed is not None:
+                result['random_seed'] = effective_seed
+        return result
 
     # For any component tool, ensure full registry is loaded
     from tuiml.agent.registry import get_tool

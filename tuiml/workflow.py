@@ -204,6 +204,31 @@ class WorkflowResult:
         from tuiml.api import serve as api_serve
         return api_serve(self, host=host, port=port, model_id=model_id)
 
+
+def _inject_seed_to_algorithm(model_cls, model_params: dict, seed: int | None) -> dict:
+    """Inject seed into model parameters if supported and not already explicitly set."""
+    if seed is None:
+        return model_params
+    
+    import inspect
+    params = model_params.copy()
+    
+    try:
+        sig = inspect.signature(model_cls.__init__)
+        parameters = sig.parameters
+    except Exception:
+        return params
+
+    if 'random_seed' in parameters:
+        if 'random_seed' not in params:
+            params['random_seed'] = seed
+    elif 'random_state' in parameters:
+        if 'random_state' not in params:
+            params['random_state'] = seed
+            
+    return params
+
+
 class Workflow:
     """Complete ML workflow with a fluent chainable API.
 
@@ -891,13 +916,23 @@ class Workflow:
 
         # 3. Determine split config (merge evaluate's test_size if split not configured)
         from tuiml.evaluation.splitting import train_test_split
+        from tuiml.utils.seed import get_global_seed
+        global_seed = get_global_seed()
+
         split_config = self._split_config or {}
         eval_config = self._evaluation_config or {}
 
         test_size = split_config.get(
             'test_size', eval_config.get('test_size', 0.2)
         )
-        random_state = split_config.get('random_state', 42)
+        
+        # Priority: explicit split config random_state > global seed > 42
+        random_state = split_config.get('random_state')
+        if random_state is None:
+            random_state = global_seed
+        if random_state is None:
+            random_state = 42
+
         do_stratify = split_config.get('stratify', True)
         stratify_arr = y if (do_stratify and y is not None) else None
 
@@ -910,6 +945,7 @@ class Workflow:
             raise ValueError(f"Unknown algorithm: {self._model}")
 
         model_params = self._model_params or {}
+        model_params = _inject_seed_to_algorithm(model_cls, model_params, random_state)
         _user_metrics = eval_config.get('metrics')
 
         # Dynamically load metrics from registry

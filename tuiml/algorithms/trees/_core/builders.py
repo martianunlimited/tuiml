@@ -92,7 +92,7 @@ def build_classifier_tree(
         ``_cpp_flat`` attribute for C++ batch prediction.
     """
     # C++ full builder for supported criteria (top-level call only)
-    if depth == 0 and config.criterion in _CPP_CLASSIFIER_CRITERIA:
+    if depth == 0 and config.criterion in _CPP_CLASSIFIER_CRITERIA and not np.isnan(X).any():
         root, flat = _build_classifier_tree_cpp(X, y, config, rng)
         root._cpp_flat = flat
         return root
@@ -225,7 +225,7 @@ def build_regressor_tree(
         ``_cpp_flat`` attribute for C++ batch prediction.
     """
     # C++ full builder for supported criteria (top-level call only)
-    if depth == 0 and config.criterion in _CPP_REGRESSOR_CRITERIA:
+    if depth == 0 and config.criterion in _CPP_REGRESSOR_CRITERIA and not np.isnan(X).any():
         root, flat = _build_regressor_tree_cpp(X, y, config, rng)
         root._cpp_flat = flat
         return root

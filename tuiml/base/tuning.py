@@ -208,7 +208,7 @@ class BaseTuner(ABC):
         refit: bool = True,
         verbose: int = 0,
         n_jobs: int = 1,
-        random_state: Optional[int] = 42,
+        random_seed: Optional[int] = None,
         progress_callback: Optional[Callable] = None
     ):
         self.estimator = estimator
@@ -217,7 +217,15 @@ class BaseTuner(ABC):
         self.refit = refit
         self.verbose = verbose
         self.n_jobs = n_jobs
-        self.random_state = random_state
+        
+        if random_seed is None:
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+        else:
+            seed = random_seed
+        if seed is None:
+            seed = 42
+        self.random_state = seed
         self.progress_callback = progress_callback
 
         self.best_params_: Optional[Dict] = None

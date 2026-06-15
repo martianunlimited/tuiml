@@ -130,7 +130,7 @@ class RandomSearchCV(BaseTuner):
                 "default": 1,
                 "description": "Number of parallel jobs (not implemented yet)."
             },
-            "random_state": {
+            "random_seed": {
                 "type": ["integer", "null"],
                 "default": None,
                 "description": "Random seed for reproducibility."
@@ -147,9 +147,14 @@ class RandomSearchCV(BaseTuner):
         refit: bool = True,
         verbose: int = 0,
         n_jobs: int = 1,
-        random_state: Optional[int] = 42,
-        progress_callback: Optional[Callable] = None
+        random_seed: Optional[int] = None,
+        progress_callback: Optional[Callable] = None,
+        **kwargs
     ):
+        legacy_random_state = kwargs.pop('random_state', None)
+        if random_seed is None:
+            random_seed = legacy_random_state
+            
         super().__init__(
             estimator=estimator,
             scoring=scoring,
@@ -157,7 +162,7 @@ class RandomSearchCV(BaseTuner):
             refit=refit,
             verbose=verbose,
             n_jobs=n_jobs,
-            random_state=random_state,
+            random_seed=random_seed,
             progress_callback=progress_callback
         )
         self.param_distributions = ParameterDistribution(param_distributions)

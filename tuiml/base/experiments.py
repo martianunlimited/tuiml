@@ -60,11 +60,22 @@ class ExperimentConfig:
     n_folds: int = 10
     n_repeats: int = 1
     test_size: float = 0.2
-    random_state: Optional[int] = 42
+    random_seed: Optional[int] = None
     stratify: bool = True
     shuffle: bool = True
     n_jobs: int = 1
     verbose: int = 0
+
+    @property
+    def random_state(self) -> Optional[int]:
+        seed = self.random_seed
+        if seed is None:
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+        if seed is None:
+            seed = 42
+        return seed
+
 
 @dataclass
 class FoldResult:

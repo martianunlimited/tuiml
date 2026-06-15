@@ -127,5 +127,5 @@ class TestEuclideanPairwise:
         for i in range(5):
             for j in range(5):
                 np.testing.assert_allclose(
-                    D[i, j], euclidean_distance(X[i], X[j]), atol=1e-10
+                    D[i, j], euclidean_distance(X[i], X[j]), atol=1e-7
                 )

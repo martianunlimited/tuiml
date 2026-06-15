@@ -8,16 +8,21 @@ import click
 from tuiml import __version__
 
 @click.group()
+@click.option('--random-seed', type=int, help='Random seed for reproducibility.')
 @click.version_option(version=__version__, prog_name="tuiml")
 @click.pass_context
-def cli(ctx):
+def cli(ctx, random_seed):
     """
     TuiML - Modern Machine Learning CLI
 
     A Python-based ML framework with three levels of API.
     Use exact class names everywhere - no mappings, fully scalable!
     """
-    pass
+    if random_seed is not None:
+        from tuiml.utils.seed import set_global_seed
+        set_global_seed(random_seed)
+        click.echo(f"Global seed set to: {random_seed}")
+
 
 # Import commands
 from tuiml.cli.commands import (
