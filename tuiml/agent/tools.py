@@ -4882,7 +4882,16 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
         n = train_counter[0]
         algo = args.get('algorithm', 'UnknownAlgorithm')
         data = args.get('data', '')
-        kwargs_str = _call_to_kwargs_str(args)
+        # tuiml.train() takes algorithm hyperparameters as direct **kwargs, not
+        # as an 'algorithm_params' dict (that wrapper is MCP-tool-only). Flatten
+        # it so the generated call is valid Python rather than passing an
+        # unexpected 'algorithm_params=' keyword.
+        flat_args = {k: v for k, v in args.items() if k != 'algorithm_params'}
+        algo_params = args.get('algorithm_params')
+        if isinstance(algo_params, dict):
+            for pk, pv in algo_params.items():
+                flat_args.setdefault(pk, pv)
+        kwargs_str = _call_to_kwargs_str(flat_args)
         md = [
             f"## Train `{algo}` (step {n})\n",
             f"> `tuiml_train(algorithm={repr(algo)}, data={repr(data)}, ...)`",
@@ -5052,7 +5061,9 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
                 _data_load_lines(data) + ["\n",
                 "from tuiml.evaluation.visualization import plot_pr_curve\n",
                 f"_probas = {model_var}.predict_proba(_dataset.X)\n",
-                f"plot_pr_curve(_dataset.y, _probas, title={repr(title)})\n",
+                "# PR curve takes positive-class scores; pick column 1 if 2-D.\n",
+                "_score = _probas[:, 1] if _probas.ndim == 2 else _probas\n",
+                f"plot_pr_curve(_dataset.y, _score, title={repr(title)})\n",
                 "plt.show()",
             ])
         elif plot_type == 'feature_importance':
@@ -5067,19 +5078,40 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
                 "plt.tight_layout(); plt.show()",
             ]
         elif plot_type == 'learning_curve':
+            # plot_learning_curve takes precomputed (train_sizes, train_scores,
+            # test_scores), so compute them here over increasing train subsets.
             code = (
                 _data_load_lines(data) + ["\n",
+                "import numpy as np\n",
                 "from tuiml.evaluation.visualization import plot_learning_curve\n",
-                f"plot_learning_curve({repr(algo or '')}, _dataset.X, _dataset.y, cv=5,\n",
-                f"                    title={repr(title)})\n",
+                "from tuiml.hub import registry\n",
+                "import tuiml.algorithms  # noqa: F401 — registers algorithms\n",
+                "from tuiml.evaluation.splitting import train_test_split\n",
+                "from tuiml.evaluation.metrics import accuracy_score\n",
+                f"_cls = registry.get({repr(algo)})\n",
+                "_Xtr, _Xte, _ytr, _yte = train_test_split(\n",
+                "    _dataset.X, _dataset.y, test_size=0.25, random_state=42)\n",
+                "_sizes, _train_sc, _test_sc = [], [], []\n",
+                "for _frac in np.linspace(0.2, 1.0, 5):\n",
+                "    _n = max(2, int(len(_Xtr) * _frac))\n",
+                "    _m = _cls(); _m.fit(_Xtr[:_n], _ytr[:_n])\n",
+                "    _sizes.append(_n)\n",
+                "    _train_sc.append(accuracy_score(_ytr[:_n], _m.predict(_Xtr[:_n])))\n",
+                "    _test_sc.append(accuracy_score(_yte, _m.predict(_Xte)))\n",
+                "plot_learning_curve(np.array(_sizes), np.array(_train_sc),\n",
+                f"                    np.array(_test_sc), title={repr(title)})\n",
                 "plt.show()",
             ])
         elif plot_type in ('cd_diagram', 'boxplot_comparison', 'heatmap', 'ranking_table'):
             exp_results = args.get('experiment_results', {})
+            # cd_diagram maps to plot_critical_difference; all take the scores
+            # dict as the first positional argument (not 'experiment_results=').
+            fn = 'plot_critical_difference' if plot_type == 'cd_diagram' else f'plot_{plot_type}'
             code = [
-                f"from tuiml.evaluation.visualization import plot_{plot_type}\n",
-                f"plot_{plot_type}(experiment_results={repr(exp_results)},\n",
-                f"                title={repr(title)})\n",
+                "import numpy as np\n",
+                f"from tuiml.evaluation.visualization import {fn}\n",
+                f"_exp = {{k: np.array(v, dtype=float) for k, v in {repr(exp_results)}.items()}}\n",
+                f"{fn}(_exp)\n",
                 "plt.show()",
             ]
         else:
@@ -5092,12 +5124,16 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
         model_id = args.get('model_id')
         dest = args.get('destination', './model.joblib')
         var = _resolve_model_var(model_id)
+        model_var = var.replace('result_', 'model_')
         md = [
             f"## Save Model → `{dest}`\n",
             f"> `tuiml_save_model(model_id=..., destination={repr(dest)})`",
         ]
+        # Use tuiml.save/tuiml.load (model serialization) — they are a matched
+        # pair. WorkflowResult.save() writes a different format that tuiml.load
+        # can't read back.
         code = [
-            f"{var}.save({repr(dest)})\n",
+            f"tuiml.save({model_var}, {repr(dest)})\n",
             f"print('Model saved to {dest}')\n",
             "\n",
             f"# Verify reload\n",
@@ -5130,22 +5166,20 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
         data = args.get('data', '')
         steps = args.get('steps', [])
         target = args.get('target')
+        # Normalize steps to a list of step names.
+        step_list = steps if isinstance(steps, list) else [steps]
+        step_list = [s for s in step_list if s]
         md = [
-            f"## Preprocess Data — {steps}\n",
-            f"> `tuiml_preprocess(data={repr(data)}, steps={steps})`",
+            f"## Preprocess Data — {step_list}\n",
+            f"> `tuiml_preprocess(data={repr(data)}, steps={step_list})`",
         ]
-        code = (
-            _data_load_lines(data) + ["\n",
-            "# Apply preprocessing via a lightweight train call\n",
-            "_pre_result = tuiml.train(\n",
-            f"    algorithm='ZeroRuleClassifier',\n",
-            f"    data=_dataset,\n",
-            f"    target={repr(target)},\n" if target else "",
-            f"    preprocessing={repr(steps)},\n",
-            "    test_size=0.0,\n",
-            ")\n",
-            "print('Preprocessing pipeline:', _pre_result.preprocessing_pipeline)",
-        ])
+        code = _data_load_lines(data) + ["\n", "_X_pre = _dataset.X\n"]
+        for step in step_list:
+            code += [
+                f"from tuiml.preprocessing import {step}\n",
+                f"_X_pre = {step}().fit_transform(_X_pre)\n",
+            ]
+        code.append("print(f'Preprocessed shape: {_X_pre.shape}')")
         return md, code
 
     # ── tuiml_select_features ────────────────────────────────────────────────
@@ -5183,21 +5217,50 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
             f"## Statistical Test — `{test}`\n",
             f"> `tuiml_test_statistics(test={repr(test)}, ...)`",
         ]
-        cls_map = {
-            'friedman': 'FriedmanTest', 'nemenyi': 'NemenyiTest',
-            'wilcoxon': 'WilcoxonTest', 'paired_t': 'PairedTTest',
-            'anova': 'AnovaTest', 'friedman_aligned': 'FriedmanAlignedTest',
-            'quade': 'QuadeTest',
+        # Statistical tests are functions in tuiml.evaluation.statistics, not
+        # classes. Map each test to its function and call shape (mirrors the
+        # tuiml_test_statistics executor).
+        fn_map = {
+            'friedman': 'friedman_test', 'nemenyi': 'nemenyi_post_hoc',
+            'wilcoxon': 'wilcoxon_signed_rank_test', 'paired_t': 'paired_t_test',
+            'anova': 'one_way_anova', 'friedman_aligned': 'friedman_aligned_ranks_test',
+            'quade': 'quade_test',
         }
-        cls = cls_map.get(test, 'FriedmanTest')
+        fn = fn_map.get(test, 'friedman_test')
         code = [
-            f"from tuiml.evaluation.statistical import {cls}\n",
-            f"_test = {cls}(significance_level={alpha})\n",
-            f"_test_result = _test.test({repr(results)})\n",
-            "print('Statistic:', _test_result.statistic)\n",
-            "print('p-value:  ', _test_result.p_value)\n",
-            "print('Significant:', _test_result.significant)",
+            "import numpy as np\n",
+            f"from tuiml.evaluation.statistics import {fn}\n",
+            f"_results = {{k: np.array(v, dtype=float) for k, v in {repr(results)}.items()}}\n",
         ]
+        if test in ('friedman', 'friedman_aligned', 'quade'):
+            code += [
+                f"statistic, p_value, significant = {fn}(_results, significance_level={alpha})\n",
+                "print('Statistic:', statistic)\n",
+                "print('p-value:  ', p_value)\n",
+                "print('Significant:', significant)",
+            ]
+        elif test == 'anova':
+            code += [
+                f"f_stat, p_value, significant = {fn}(*_results.values(), significance_level={alpha})\n",
+                "print('F-statistic:', f_stat)\n",
+                "print('p-value:    ', p_value)\n",
+                "print('Significant:', significant)",
+            ]
+        elif test in ('wilcoxon', 'paired_t'):
+            code += [
+                "_names = list(_results.keys())\n",
+                "_x, _y = _results[_names[0]], _results[_names[1]]\n",
+                f"_stats = {fn}(_x, _y, significance_level={alpha})\n",
+                "print('Statistic:', _stats.t_statistic)\n",
+                "print('p-value:  ', _stats.p_value)\n",
+                "print('Significant:', _stats.is_significant())",
+            ]
+        else:  # nemenyi
+            code += [
+                f"_pairwise = {fn}(_results, significance_level={alpha})\n",
+                "for _pair, _sig in _pairwise.items():\n",
+                "    print(_pair, '→ significant:', bool(_sig))",
+            ]
         return md, code
 
     # ── tuiml_upload_data ────────────────────────────────────────────────────
