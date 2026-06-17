@@ -5,6 +5,24 @@ All notable changes to TuiML will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-06-17
+
+### Added
+- `tuiml_export_notebook` MCP tool — export the current MCP session as a
+  reproducible Jupyter notebook (`.ipynb`). Training, experiment, tuning,
+  plotting, and data-prep steps are translated to equivalent Python API
+  calls so the workflow can be re-run without the AI client.
+
+### Fixed
+- `tuiml_export_notebook` now embeds the effective random seed. The seed is
+  resolved into the call *result* (not the args), so auto-resolved seeds were
+  previously dropped; exported notebooks now fold it into train/experiment/
+  tune cells and emit a `set_global_seed()` cell for full reproducibility.
+- Silenced spurious "Component '...' is already registered. Overwriting."
+  warnings on intentional user-algorithm re-registration (new version,
+  restart bootstrap). Genuine name clashes still warn, now on stderr so the
+  message can no longer corrupt the MCP stdio JSON-RPC stream.
+
 ## [0.1.4] - 2026-05-20
 
 ### Added
@@ -95,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model serialization via joblib with save/load utilities.
 - Cross-validation, grid search, and hyperparameter tuning support.
 
+[0.1.5]: https://github.com/tuiml/tuiml/releases/tag/v0.1.5
 [0.1.4]: https://github.com/tuiml/tuiml/releases/tag/v0.1.4
 [0.1.3]: https://github.com/tuiml/tuiml/releases/tag/v0.1.3
 [0.1.2]: https://github.com/tuiml/tuiml/releases/tag/v0.1.2
