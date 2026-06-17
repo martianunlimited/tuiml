@@ -231,7 +231,6 @@ def plot_boxplot_comparison(
 
     bp = ax.boxplot(
         [scores[:, i] for i in range(n_algorithms)],
-        labels=names,
         patch_artist=True,
         notch=notch,
         widths=0.8,
@@ -247,6 +246,10 @@ def plot_boxplot_comparison(
             'alpha': 0.55,
         },
     )
+    # Set tick labels separately — matplotlib renamed boxplot's ``labels`` kwarg
+    # to ``tick_labels`` in 3.9, so passing it directly breaks on newer versions.
+    ax.set_xticks(range(1, n_algorithms + 1))
+    ax.set_xticklabels(names)
 
     for patch, color in zip(bp['boxes'], box_colors):
         patch.set_facecolor(color)
