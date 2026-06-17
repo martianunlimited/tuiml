@@ -5246,6 +5246,12 @@ def execute_export_notebook(**kwargs) -> Dict[str, Any]:
         "**Requirements:** `pip install tuiml`",
     ]))
 
+    # ── Install cell ─────────────────────────────────────────────────────────
+    # First executable cell installs tuiml (e.g. on Colab / a fresh kernel).
+    cells.append(_nb_code([
+        "!pip install tuiml",
+    ]))
+
     # ── Imports cell ─────────────────────────────────────────────────────────
     cells.append(_nb_code([
         "import tuiml\n",
