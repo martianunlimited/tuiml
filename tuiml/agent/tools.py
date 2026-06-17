@@ -60,6 +60,13 @@ def record_session_call(tool_name: str, args: dict, result: dict) -> None:
     if tool_name in _SESSION_SKIP:
         return
     clean_args = {k: v for k, v in args.items() if not k.startswith('_')}
+    # Capture the effective random seed. execute_tool resolves the seed (explicit
+    # arg → global seed → default) and writes it back into the *result*, not the
+    # args. Fold it into the recorded args so the exported notebook reproduces the
+    # exact run even when the seed was auto-resolved rather than passed explicitly.
+    if isinstance(result, dict) and result.get('random_seed') is not None \
+            and 'random_seed' not in clean_args:
+        clean_args['random_seed'] = result['random_seed']
     with _SESSION_LOCK:
         idx = len(_SESSION_CALLS)
         _SESSION_CALLS.append({'tool': tool_name, 'args': clean_args})
@@ -4951,6 +4958,9 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
         ]
         if metrics:
             code.append(f"    metrics={repr(metrics)},\n")
+        seed = args.get('random_seed')
+        if seed is not None:
+            code.append(f"    random_seed={repr(seed)},\n")
         code += [")\n", "print(exp.summary())"]
         return md, code
 
@@ -4964,7 +4974,9 @@ def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
         scoring = args.get('scoring', 'accuracy_score')
         n_iter = args.get('n_iter', 10)
         n_iterations = args.get('n_iterations', 50)
-        random_state = args.get('random_state', 42)
+        # Prefer an explicit random_state, then the effective session seed folded
+        # in by record_session_call, then the default — so tuning reproduces.
+        random_state = args.get('random_state', args.get('random_seed', 42))
         cls_map = {'grid': 'GridSearchCV', 'random': 'RandomSearchCV', 'bayesian': 'BayesianSearchCV'}
         tuner_cls = cls_map.get(method, 'RandomSearchCV')
         param_kw = 'param_grid' if method == 'grid' else ('param_space' if method == 'bayesian' else 'param_distributions')
@@ -5242,6 +5254,27 @@ def execute_export_notebook(**kwargs) -> Dict[str, Any]:
         "import pandas as pd\n",
         "import numpy as np",
     ]))
+
+    # ── Global seed cell ─────────────────────────────────────────────────────
+    # Mirror the MCP session's reproducibility: execute_tool sets a process-wide
+    # seed, which the workflow reads as a fallback for any step that doesn't take
+    # an explicit seed (data generation, feature selection, CV splits, plots).
+    # Pin the same seed here so the notebook reproduces those steps too.
+    _session_seed = next(
+        (c['args']['random_seed'] for c in calls_snapshot
+         if c['args'].get('random_seed') is not None),
+        None,
+    )
+    if _session_seed is not None:
+        cells.append(_nb_markdown([
+            "## Reproducibility\n",
+            f"This session ran with random seed `{_session_seed}`. "
+            "Setting it globally pins NumPy/Python RNG so results match the original run.",
+        ]))
+        cells.append(_nb_code([
+            "from tuiml.utils.seed import set_global_seed\n",
+            f"set_global_seed({repr(_session_seed)})",
+        ]))
 
     train_counter = [0]
     skipped = 0
