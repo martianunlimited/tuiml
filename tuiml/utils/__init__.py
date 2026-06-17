@@ -22,6 +22,10 @@ from .serialization import (
     load_model_info,
     export_to_onnx,
 )
+from .seed import (
+    set_global_seed,
+    get_global_seed,
+)
 
 __all__ = [
     # Serialization
@@ -31,4 +35,8 @@ __all__ = [
     "load_model",
     "load_model_info",
     "export_to_onnx",
+    # Seed utility
+    "set_global_seed",
+    "get_global_seed",
 ]
+

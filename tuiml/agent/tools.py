@@ -114,6 +114,7 @@ OUTPUT_SCHEMAS = {
                 "description": "Name of the trained model class"
             },
             "metadata": {"type": "object"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -158,7 +159,8 @@ OUTPUT_SCHEMAS = {
             "cv_folds": {"type": "integer"},
             "error": {"type": "string"},
             "suggested_metrics": {"type": "array", "items": {"type": "string"}},
-            "algorithm_types": {"type": "array", "items": {"type": "string"}}
+            "algorithm_types": {"type": "array", "items": {"type": "string"}},
+            "random_seed": {"type": "integer"}
         },
         "required": ["status"]
     },
@@ -319,6 +321,7 @@ OUTPUT_SCHEMAS = {
             "feature_names": {"type": "array", "items": {"type": "string"}},
             "target_names": {"type": "array", "items": {"type": "string"}},
             "preview": {"type": "object"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -328,6 +331,13 @@ OUTPUT_SCHEMAS = {
         "properties": {
             "status": {"type": "string", "enum": ["success", "error"]},
             "file_path": {"type": "string"},
+            "files": {
+                "type": "object",
+                "description": "Mapping of split names/folds to file paths"
+            },
+            "stage": {"type": "string"},
+            "split_type": {"type": "string"},
+            "n_splits": {"type": "integer"},
             "original_shape": {"type": "array", "items": {"type": "integer"}},
             "new_shape": {"type": "array", "items": {"type": "integer"}},
             "steps_applied": {"type": "array", "items": {"type": "string"}},
@@ -372,6 +382,7 @@ OUTPUT_SCHEMAS = {
             "cv_results": {"type": "object"},
             "model_id": {"type": "string"},
             "model_path": {"type": "string"},
+            "random_seed": {"type": "integer"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -510,9 +521,29 @@ WORKFLOW_TOOLS = {
                 "save_path": {
                     "type": "string",
                     "description": "Custom path to save the model file (optional). If omitted, saved to temp directory."
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "description": "Random seed for reproducibility"
+                },
+                "stage": {
+                    "type": "string",
+                    "description": "Atomic training stage: 'init', 'fit', 'partial_fit', 'cross_validate'"
+                },
+                "stage_kwargs": {
+                    "type": "object",
+                    "description": "Arbitrary stage-specific keyword arguments (e.g. classes)"
+                },
+                "model_id": {
+                    "type": "string",
+                    "description": "Unique identifier of a previously initialized/saved model"
+                },
+                "model_path": {
+                    "type": "string",
+                    "description": "File path of a previously initialized/saved model"
                 }
             },
-            "required": ["algorithm", "data"]
+            "required": []
         }
     },
 
@@ -544,6 +575,14 @@ WORKFLOW_TOOLS = {
                 "output_path": {
                     "type": "string",
                     "description": "Path to save predictions (optional)"
+                },
+                "stage": {
+                    "type": "string",
+                    "description": "Atomic prediction stage: 'predict', 'predict_proba', 'forecast'"
+                },
+                "stage_kwargs": {
+                    "type": "object",
+                    "description": "Arbitrary stage-specific keyword arguments"
                 }
             },
             "required": []
@@ -576,9 +615,17 @@ WORKFLOW_TOOLS = {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Metrics to compute"
+                },
+                "stage": {
+                    "type": "string",
+                    "description": "Atomic evaluation stage: 'metrics', 'report'"
+                },
+                "stage_kwargs": {
+                    "type": "object",
+                    "description": "Arbitrary stage-specific keyword arguments"
                 }
             },
-            "required": ["data", "target"]
+            "required": ["data"]
         }
     },
 
@@ -619,6 +666,10 @@ WORKFLOW_TOOLS = {
                         "- Clustering: ['silhouette_score', 'calinski_harabasz_score', 'davies_bouldin_score']\n"
                         "If omitted, appropriate metrics are automatically selected based on algorithm type."
                     )
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "description": "Random seed for reproducibility"
                 }
             },
             "required": ["algorithms", "data", "target"]
@@ -881,7 +932,7 @@ WORKFLOW_TOOLS = {
                     "type": "number",
                     "description": "Noise level (regression generators only)"
                 },
-                "random_state": {
+                "random_seed": {
                     "type": "integer",
                     "description": "Random seed for reproducibility"
                 },
@@ -898,8 +949,8 @@ WORKFLOW_TOOLS = {
         "name": "tuiml_preprocess",
         "description": (
             "Apply preprocessing steps to a dataset and return the result as a new file. "
-            "Supports any registered preprocessor (e.g., StandardScaler, MinMaxScaler, "
-            "SimpleImputer, PCA). Steps can be strings or objects with parameters."
+            "Supports running standard pipelines or single atomic stages like split, impute, "
+            "balance, scale, encode, and discretize."
         ),
         "inputSchema": {
             "type": "object",
@@ -931,12 +982,24 @@ WORKFLOW_TOOLS = {
                         "[{'name': 'SimpleImputer', 'strategy': 'median'}, 'MinMaxScaler']"
                     )
                 },
+                "stage": {
+                    "type": "string",
+                    "description": "Atomic preprocessing stage to execute: 'split', 'impute', 'balance', 'scale', 'encode', 'discretize'"
+                },
+                "stage_kwargs": {
+                    "type": "object",
+                    "description": "Arbitrary keyword arguments for the selected stage (e.g. kfold, test_size, strategy, method)"
+                },
+                "output": {
+                    "type": "string",
+                    "description": "Output path to save the generated file(s)"
+                },
                 "save_as": {
                     "type": "string",
-                    "description": "Custom output file path (optional, defaults to temp file)"
+                    "description": "Custom output file path (optional, alias for output)"
                 }
             },
-            "required": ["data", "steps"]
+            "required": ["data"]
         }
     },
 
@@ -1084,7 +1147,7 @@ WORKFLOW_TOOLS = {
                     "default": 50,
                     "description": "Number of iterations for Bayesian search"
                 },
-                "random_state": {
+                "random_seed": {
                     "type": "integer",
                     "description": "Random seed for reproducibility"
                 }
@@ -1532,14 +1595,288 @@ DISCOVERY_TOOLS = {
 def execute_train(**kwargs) -> Dict[str, Any]:
     """Execute training workflow."""
     import tuiml
+    import numpy as np
 
-    algo_params = kwargs.pop('algorithm_params', {})
+    stage = kwargs.pop('stage', None)
+    stage_kwargs = kwargs.pop('stage_kwargs', None) or {}
+    model_id = kwargs.pop('model_id', None)
+    model_path = kwargs.pop('model_path', None)
+
+    # 1. Handle Stage: init
+    if stage == 'init':
+        algorithm = kwargs.get('algorithm')
+        if not algorithm:
+            return {
+                'status': 'error',
+                'error': "Missing required parameter 'algorithm' for stage 'init'"
+            }
+        algo_params = kwargs.pop('algorithm_params', {}) or {}
+        algo_params.update(stage_kwargs)
+        
+        from tuiml.hub import registry
+        import tuiml.algorithms  # noqa
+        try:
+            model_cls = registry.get(algorithm)
+        except KeyError:
+            return {
+                'status': 'error',
+                'error': f"Algorithm not found: {algorithm}",
+                'error_type': 'KeyError',
+                'suggestion': "Use 'tuiml_list' with category='algorithm' to see available algorithms"
+            }
+        
+        random_seed = kwargs.get('random_seed')
+        if random_seed is None:
+            from tuiml.utils.seed import get_global_seed
+            random_seed = get_global_seed() or 42
+        
+        from tuiml.workflow import _inject_seed_to_algorithm
+        algo_params = _inject_seed_to_algorithm(model_cls, algo_params, random_seed)
+        
+        try:
+            model = model_cls(**algo_params)
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f"Failed to instantiate {algorithm}: {e}",
+                'error_type': type(e).__name__
+            }
+            
+        save_path = kwargs.pop('save_path', None)
+        out_model_id = uuid.uuid4().hex[:12]
+        out_model_path = _save_model_to_disk(model, out_model_id, save_path)
+        _MODEL_INDEX[out_model_id] = out_model_path
+        
+        return {
+            'status': 'success',
+            'model_id': out_model_id,
+            'model_path': out_model_path,
+            'model_class': model.__class__.__name__
+        }
+
+    # 2. Handle Stage: fit
+    elif stage == 'fit':
+        model = None
+        if model_id or model_path:
+            model = _load_model_from_disk(model_id, model_path)
+            if model is None:
+                return {
+                    'status': 'error',
+                    'error': f"Could not load model from model_id='{model_id}' or model_path='{model_path}'"
+                }
+        else:
+            algorithm = kwargs.get('algorithm')
+            if not algorithm:
+                return {
+                    'status': 'error',
+                    'error': "Provide either 'algorithm' to train a new model, or 'model_id'/'model_path' to load an existing model."
+                }
+            from tuiml.hub import registry
+            import tuiml.algorithms  # noqa
+            try:
+                model_cls = registry.get(algorithm)
+            except KeyError:
+                return {
+                    'status': 'error',
+                    'error': f"Algorithm not found: {algorithm}",
+                    'error_type': 'KeyError'
+                }
+            algo_params = kwargs.pop('algorithm_params', {}) or {}
+            algo_params.update(stage_kwargs)
+            random_seed = kwargs.get('random_seed')
+            if random_seed is None:
+                from tuiml.utils.seed import get_global_seed
+                random_seed = get_global_seed() or 42
+            from tuiml.workflow import _inject_seed_to_algorithm
+            algo_params = _inject_seed_to_algorithm(model_cls, algo_params, random_seed)
+            try:
+                model = model_cls(**algo_params)
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f"Failed to instantiate {algorithm}: {e}",
+                    'error_type': type(e).__name__
+                }
+
+        data_arg = kwargs.get('data')
+        if not data_arg:
+            return {
+                'status': 'error',
+                'error': "Missing required parameter 'data' for stage 'fit'"
+            }
+        try:
+            dataset = _load_data(data_arg)
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f"Could not resolve data='{data_arg}': {e}",
+                'error_type': type(e).__name__
+            }
+        
+        X, y = dataset.X, dataset.y
+        import inspect
+        fit_sig = inspect.signature(model.fit)
+        fit_params = list(fit_sig.parameters.keys())
+        expects_y = 'y' in fit_params
+        
+        try:
+            if expects_y and y is not None:
+                model.fit(X, y)
+            else:
+                model.fit(X)
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f"Fit failed: {e}",
+                'error_type': type(e).__name__
+            }
+            
+        save_path = kwargs.pop('save_path', None)
+        out_model_id = model_id or uuid.uuid4().hex[:12]
+        out_model_path = _save_model_to_disk(model, out_model_id, save_path)
+        _MODEL_INDEX[out_model_id] = out_model_path
+        
+        return {
+            'status': 'success',
+            'model_id': out_model_id,
+            'model_path': out_model_path,
+            'model_class': model.__class__.__name__
+        }
+
+    # 3. Handle Stage: partial_fit
+    elif stage == 'partial_fit':
+        classes_arg = stage_kwargs.pop('classes', None)
+        model = None
+        if model_id or model_path:
+            model = _load_model_from_disk(model_id, model_path)
+            if model is None:
+                return {
+                    'status': 'error',
+                    'error': f"Could not load model from model_id='{model_id}' or model_path='{model_path}'"
+                }
+        else:
+            algorithm = kwargs.get('algorithm')
+            if not algorithm:
+                return {
+                    'status': 'error',
+                    'error': "Provide either 'algorithm' to train a new model, or 'model_id'/'model_path' to load an existing model."
+                }
+            from tuiml.hub import registry
+            import tuiml.algorithms  # noqa
+            try:
+                model_cls = registry.get(algorithm)
+            except KeyError:
+                return {
+                    'status': 'error',
+                    'error': f"Algorithm not found: {algorithm}",
+                    'error_type': 'KeyError'
+                }
+            algo_params = kwargs.pop('algorithm_params', {}) or {}
+            algo_params.update(stage_kwargs)
+            random_seed = kwargs.get('random_seed')
+            if random_seed is None:
+                from tuiml.utils.seed import get_global_seed
+                random_seed = get_global_seed() or 42
+            from tuiml.workflow import _inject_seed_to_algorithm
+            algo_params = _inject_seed_to_algorithm(model_cls, algo_params, random_seed)
+            try:
+                model = model_cls(**algo_params)
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f"Failed to instantiate {algorithm}: {e}",
+                    'error_type': type(e).__name__
+                }
+        
+        if not hasattr(model, 'partial_fit'):
+            return {
+                'status': 'error',
+                'error': f"Algorithm '{model.__class__.__name__}' does not support incremental training (partial_fit)"
+            }
+            
+        data_arg = kwargs.get('data')
+        if not data_arg:
+            return {
+                'status': 'error',
+                'error': "Missing required parameter 'data' for stage 'partial_fit'"
+            }
+        try:
+            dataset = _load_data(data_arg)
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f"Could not resolve data='{data_arg}': {e}",
+                'error_type': type(e).__name__
+            }
+            
+        X, y = dataset.X, dataset.y
+        
+        # Parse classes if passed
+        classes = classes_arg if classes_arg is not None else stage_kwargs.get('classes')
+        if classes is not None:
+            if isinstance(classes, str):
+                try:
+                    classes = json.loads(classes)
+                except json.JSONDecodeError:
+                    classes = [c.strip() for c in classes.split(',')]
+            classes = np.asarray(classes)
+            
+        import inspect
+        pf_sig = inspect.signature(model.partial_fit)
+        pf_params = list(pf_sig.parameters.keys())
+        expects_y = 'y' in pf_params
+        expects_classes = 'classes' in pf_params
+        
+        pf_kwargs = {}
+        if expects_classes and classes is not None:
+            pf_kwargs['classes'] = classes
+            
+        try:
+            if expects_y and y is not None:
+                model.partial_fit(X, y, **pf_kwargs)
+            else:
+                model.partial_fit(X, **pf_kwargs)
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f"partial_fit failed: {e}",
+                'error_type': type(e).__name__
+            }
+            
+        save_path = kwargs.pop('save_path', None)
+        out_model_id = model_id or uuid.uuid4().hex[:12]
+        out_model_path = _save_model_to_disk(model, out_model_id, save_path)
+        _MODEL_INDEX[out_model_id] = out_model_path
+        
+        return {
+            'status': 'success',
+            'model_id': out_model_id,
+            'model_path': out_model_path,
+            'model_class': model.__class__.__name__
+        }
+
+    # 4. Handle Stage: cross_validate (or normal fallback)
+    elif stage == 'cross_validate':
+        cv_folds = kwargs.get('cv') or stage_kwargs.get('cv') or 5
+        kwargs['cv'] = cv_folds
+        
+        if model_id or model_path:
+            model = _load_model_from_disk(model_id, model_path)
+            if model is None:
+                return {
+                    'status': 'error',
+                    'error': f"Could not load model from model_id='{model_id}' or model_path='{model_path}'"
+                }
+            kwargs['algorithm'] = model.__class__.__name__
+            if hasattr(model, 'get_params'):
+                kwargs['algorithm_params'] = model.get_params()
+
+    # Normal execution path (either default or cross_validate stage)
+    algo_params = kwargs.pop('algorithm_params', {}) or {}
     save_path = kwargs.pop('save_path', None)
     kwargs.update(algo_params)
 
-    # Pre-resolve data via the shared loader so dataset_ids, upload paths,
-    # and built-in dataset names all work identically (Workflow only handles
-    # file paths + built-in names).
+    # Pre-resolve data via the shared loader
     data_arg = kwargs.get('data')
     if isinstance(data_arg, str):
         try:
@@ -1623,6 +1960,8 @@ def execute_predict(**kwargs) -> Dict[str, Any]:
     try:
         model_id = kwargs.get('model_id')
         model_path = kwargs.get('model_path')
+        stage = kwargs.pop('stage', None)
+        stage_kwargs = kwargs.pop('stage_kwargs', None) or {}
 
         model = _load_model_from_disk(model_id, model_path)
         if model is None:
@@ -1635,8 +1974,67 @@ def execute_predict(**kwargs) -> Dict[str, Any]:
 
         tags = _get_model_tags(model)
 
-        # Timeseries models: use steps parameter
-        if 'timeseries' in tags:
+        # 1. Handle Stage: forecast
+        if stage == 'forecast':
+            steps = kwargs.get('steps') or stage_kwargs.get('steps') or 10
+            try:
+                predictions = model.predict(steps)
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f"Forecasting failed: {e}",
+                    'error_type': type(e).__name__
+                }
+            predictions = np.asarray(predictions)
+            result = {
+                'status': 'success',
+                'model_type': 'timeseries',
+                'num_predictions': len(predictions),
+                'predictions_preview': predictions[:10].tolist(),
+                'steps': steps
+            }
+            if kwargs.get('output_path'):
+                np.savetxt(kwargs['output_path'], predictions)
+                result['output_path'] = kwargs['output_path']
+            return result
+
+        # 2. Handle Stage: predict_proba
+        elif stage == 'predict_proba':
+            if not hasattr(model, 'predict_proba'):
+                return {
+                    'status': 'error',
+                    'error': f"Model '{model.__class__.__name__}' does not support class probability prediction (predict_proba)"
+                }
+            
+            data_arg = kwargs.get('data')
+            if not data_arg:
+                return {
+                    'status': 'error',
+                    'error': "Missing required parameter 'data' for stage 'predict_proba'"
+                }
+            dataset = _load_data(data_arg)
+            try:
+                probabilities = model.predict_proba(dataset.X)
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f"Probability prediction failed: {e}",
+                    'error_type': type(e).__name__
+                }
+            probabilities = np.asarray(probabilities)
+            result = {
+                'status': 'success',
+                'num_predictions': len(probabilities),
+                'predictions_preview': probabilities[:10].tolist()
+            }
+            if kwargs.get('output_path'):
+                np.savetxt(kwargs['output_path'], probabilities)
+                result['output_path'] = kwargs['output_path']
+            return result
+
+        # 3. Handle Stage: predict (or default fallback)
+        # Timeseries models
+        if 'timeseries' in tags and stage is None:
             steps = kwargs.get('steps', 10)
             predictions = model.predict(steps)
             predictions = np.asarray(predictions)
@@ -1722,6 +2120,8 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
     try:
         model_id = kwargs.get('model_id')
         model_path = kwargs.get('model_path')
+        stage = kwargs.pop('stage', None)
+        stage_kwargs = kwargs.pop('stage_kwargs', None) or {}
 
         model = _load_model_from_disk(model_id, model_path)
         if model is None:
@@ -1735,17 +2135,211 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
         tags = _get_model_tags(model)
         dataset = _load_data(kwargs['data'])
 
-        # Timeseries evaluation: holdout last 20% as test
-        if 'timeseries' in tags:
-            from tuiml.evaluation.metrics import (
-                mean_absolute_error, mean_squared_error, r2_score
-            )
+        # Check model type
+        is_timeseries = 'timeseries' in tags
+        is_anomaly = 'anomaly-detection' in tags
+        is_classifier = False
+        is_regressor = False
+        is_clustering = False
 
+        if not is_timeseries and not is_anomaly:
+            try:
+                from tuiml.hub import registry
+                algo_info = registry.get_info(model.__class__.__name__)
+                algo_type = algo_info.get('type')
+                if algo_type == 'classifier':
+                    is_classifier = True
+                elif algo_type == 'regressor':
+                    is_regressor = True
+                elif algo_type in ('clusterer', 'clustering'):
+                    is_clustering = True
+            except Exception:
+                if hasattr(model, 'predict_proba'):
+                    is_classifier = True
+                elif hasattr(model, 'labels_'):
+                    is_clustering = True
+                else:
+                    is_regressor = True
+
+        # ---- Handle Stage: report ----
+        if stage == 'report':
+            # 1. Timeseries Report
+            if is_timeseries:
+                from tuiml.evaluation.metrics import mean_absolute_error, mean_squared_error, r2_score
+                y = np.asarray(dataset.y) if dataset.y is not None else np.asarray(dataset.X).ravel()
+                split_idx = int(len(y) * 0.8)
+                y_train, y_test = y[:split_idx], y[split_idx:]
+                model.fit(y_train)
+                forecast = np.asarray(model.predict(len(y_test)))
+                mae = mean_absolute_error(y_test, forecast)
+                mse = mean_squared_error(y_test, forecast)
+                rmse = np.sqrt(mse)
+                r2 = r2_score(y_test, forecast)
+                report_str = (
+                    f"==================================================\n"
+                    f"Time-Series Forecasting Report ({model.__class__.__name__})\n"
+                    f"==================================================\n"
+                    f"Training Samples : {len(y_train)}\n"
+                    f"Testing Samples  : {len(y_test)}\n"
+                    f"--------------------------------------------------\n"
+                    f"Mean Absolute Error (MAE)      : {mae:.4f}\n"
+                    f"Mean Squared Error (MSE)       : {mse:.4f}\n"
+                    f"Root Mean Squared Error (RMSE) : {rmse:.4f}\n"
+                    f"R² (Coefficient of Determination): {r2:.4f}\n"
+                    f"=================================================="
+                )
+                return {
+                    'status': 'success',
+                    'model_type': 'timeseries',
+                    'report': report_str,
+                    'metrics': {
+                        'mean_absolute_error': float(mae),
+                        'mean_squared_error': float(mse),
+                        'root_mean_squared_error': float(rmse),
+                        'r2_score': float(r2)
+                    }
+                }
+
+            # 2. Anomaly Detection Report
+            elif is_anomaly:
+                predictions = np.asarray(model.predict(dataset.X))
+                n_anomalies = int(np.sum(predictions == -1))
+                n_normal = int(np.sum(predictions == 1))
+                total = len(predictions)
+                anomaly_ratio = n_anomalies / total if total > 0 else 0.0
+
+                report_str = (
+                    f"==================================================\n"
+                    f"Anomaly Detection Report ({model.__class__.__name__})\n"
+                    f"==================================================\n"
+                    f"Total Samples Tested  : {total}\n"
+                    f"Normal Instances Detected : {n_normal} ({100*(1-anomaly_ratio):.2f}%)\n"
+                    f"Anomalies Detected        : {n_anomalies} ({100*anomaly_ratio:.2f}%)\n"
+                    f"Anomaly Ratio             : {anomaly_ratio:.4f}\n"
+                )
+
+                metrics = {
+                    'n_anomalies': n_anomalies,
+                    'n_normal': n_normal,
+                    'anomaly_ratio': anomaly_ratio
+                }
+
+                if hasattr(model, 'decision_function'):
+                    scores = np.asarray(model.decision_function(dataset.X))
+                    metrics['score_mean'] = float(np.mean(scores))
+                    metrics['score_std'] = float(np.std(scores))
+                    report_str += f"Anomaly Score Mean        : {metrics['score_mean']:.4f}\n"
+                    report_str += f"Anomaly Score Std         : {metrics['score_std']:.4f}\n"
+
+                if dataset.y is not None:
+                    from tuiml.evaluation.metrics import accuracy_score, precision_score, recall_score, f1_score
+                    y_true = np.asarray(dataset.y)
+                    metrics['accuracy'] = float(accuracy_score(y_true, predictions))
+                    metrics['precision'] = float(precision_score(y_true, predictions))
+                    metrics['recall'] = float(recall_score(y_true, predictions))
+                    metrics['f1'] = float(f1_score(y_true, predictions))
+                    report_str += f"--------------------------------------------------\n"
+                    report_str += f"Supervised Evaluation (using ground truth):\n"
+                    report_str += f"  Accuracy  : {metrics['accuracy']:.4f}\n"
+                    report_str += f"  Precision : {metrics['precision']:.4f}\n"
+                    report_str += f"  Recall    : {metrics['recall']:.4f}\n"
+                    report_str += f"  F1-Score  : {metrics['f1']:.4f}\n"
+
+                report_str += f"=================================================="
+                return {
+                    'status': 'success',
+                    'model_type': 'anomaly',
+                    'report': report_str,
+                    'metrics': metrics
+                }
+
+            # 3. Classifier Report
+            elif is_classifier:
+                from tuiml.evaluation.metrics import classification_report
+                y_pred = model.predict(dataset.X)
+                report_str = classification_report(np.asarray(dataset.y), np.asarray(y_pred))
+                report_header = (
+                    f"==================================================\n"
+                    f"Classification Report ({model.__class__.__name__})\n"
+                    f"==================================================\n"
+                )
+                report_str = report_header + report_str + "=================================================="
+                
+                # Also compute standard dict metrics
+                import tuiml
+                metrics = tuiml.evaluate(model, dataset.X, dataset.y, metrics='auto')
+                return {
+                    'status': 'success',
+                    'model_type': 'classifier',
+                    'report': report_str,
+                    'metrics': metrics
+                }
+
+            # 4. Regressor Report
+            elif is_regressor:
+                from tuiml.evaluation.metrics import mean_absolute_error, mean_squared_error, r2_score
+                y_pred = np.asarray(model.predict(dataset.X))
+                y_true = np.asarray(dataset.y)
+                mae = mean_absolute_error(y_true, y_pred)
+                mse = mean_squared_error(y_true, y_pred)
+                rmse = np.sqrt(mse)
+                r2 = r2_score(y_true, y_pred)
+                report_str = (
+                    f"==================================================\n"
+                    f"Regression Evaluation Report ({model.__class__.__name__})\n"
+                    f"==================================================\n"
+                    f"Mean Absolute Error (MAE)      : {mae:.4f}\n"
+                    f"Mean Squared Error (MSE)       : {mse:.4f}\n"
+                    f"Root Mean Squared Error (RMSE) : {rmse:.4f}\n"
+                    f"R² (Coefficient of Determination): {r2:.4f}\n"
+                    f"=================================================="
+                )
+                return {
+                    'status': 'success',
+                    'model_type': 'regressor',
+                    'report': report_str,
+                    'metrics': {
+                        'mean_absolute_error': float(mae),
+                        'mean_squared_error': float(mse),
+                        'root_mean_squared_error': float(rmse),
+                        'r2_score': float(r2)
+                    }
+                }
+
+            # 5. Clusterer Report
+            elif is_clustering:
+                from tuiml.evaluation.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+                labels = model.predict(dataset.X) if hasattr(model, 'predict') else model.labels_
+                sil = silhouette_score(dataset.X, labels)
+                db = davies_bouldin_score(dataset.X, labels)
+                ch = calinski_harabasz_score(dataset.X, labels)
+                report_str = (
+                    f"==================================================\n"
+                    f"Clustering Evaluation Report ({model.__class__.__name__})\n"
+                    f"==================================================\n"
+                    f"Silhouette Coefficient         : {sil:.4f}  (closer to 1 is better)\n"
+                    f"Davies-Bouldin Index           : {db:.4f}  (closer to 0 is better)\n"
+                    f"Calinski-Harabasz Score        : {ch:.4f}  (higher is better)\n"
+                    f"=================================================="
+                )
+                return {
+                    'status': 'success',
+                    'model_type': 'clustering',
+                    'report': report_str,
+                    'metrics': {
+                        'silhouette_score': float(sil),
+                        'davies_bouldin_score': float(db),
+                        'calinski_harabasz_score': float(ch)
+                    }
+                }
+
+        # ---- Handle Stage: metrics (or fallback default) ----
+        # Timeseries evaluation
+        if is_timeseries:
+            from tuiml.evaluation.metrics import mean_absolute_error, mean_squared_error
             y = np.asarray(dataset.y) if dataset.y is not None else np.asarray(dataset.X).ravel()
             split_idx = int(len(y) * 0.8)
             y_train, y_test = y[:split_idx], y[split_idx:]
-
-            # Re-fit on training portion
             model.fit(y_train)
             forecast = model.predict(len(y_test))
             forecast = np.asarray(forecast)
@@ -1756,6 +2350,7 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
                 'root_mean_squared_error': float(np.sqrt(mean_squared_error(y_test, forecast))),
             }
             try:
+                from tuiml.evaluation.metrics import r2_score
                 metrics['r2_score'] = float(r2_score(y_test, forecast))
             except Exception:
                 pass
@@ -1769,8 +2364,8 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
                 'forecast_preview': forecast[:10].tolist()
             }
 
-        # Anomaly detection evaluation: unsupervised stats + optional supervised
-        if 'anomaly-detection' in tags:
+        # Anomaly detection evaluation
+        if is_anomaly:
             predictions = np.asarray(model.predict(dataset.X))
             n_anomalies = int(np.sum(predictions == -1))
             n_total = len(predictions)
@@ -1785,7 +2380,6 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
                 }
             }
 
-            # Anomaly scores statistics
             if hasattr(model, 'decision_function'):
                 try:
                     scores = np.asarray(model.decision_function(dataset.X))
@@ -1794,7 +2388,6 @@ def execute_evaluate(**kwargs) -> Dict[str, Any]:
                 except Exception:
                     pass
 
-            # If ground truth labels available, compute supervised metrics
             if dataset.y is not None:
                 try:
                     from tuiml.evaluation.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -2647,7 +3240,9 @@ def execute_plot(**kwargs) -> Dict[str, Any]:
             n_splits = 5
             train_fractions = np.linspace(0.1, 1.0, 10)
             n_samples = len(dataset.y)
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=seed if seed is not None else 42)
 
             all_train_sizes = []
             all_train_scores = []  # shape: (n_sizes, n_splits)
@@ -2997,6 +3592,9 @@ def execute_generate_data(**kwargs) -> Dict[str, Any]:
         # Build constructor params
         params = {}
         extra_params = kwargs.get('generator_params', {})
+        if 'random_seed' in kwargs:
+            kwargs['random_state'] = kwargs.pop('random_seed')
+            
         for key in ('n_samples', 'n_features', 'n_classes', 'n_clusters', 'noise', 'random_state'):
             if key in kwargs and kwargs[key] is not None:
                 params[key] = kwargs[key]
@@ -3041,8 +3639,9 @@ def execute_generate_data(**kwargs) -> Dict[str, Any]:
 
 
 def execute_preprocess(**kwargs) -> Dict[str, Any]:
-    """Apply preprocessing steps to a dataset."""
+    """Apply preprocessing steps or a specific atomic stage to a dataset."""
     import numpy as np
+    import pandas as pd
 
     try:
         dataset = _load_data(kwargs['data'])
@@ -3051,82 +3650,361 @@ def execute_preprocess(**kwargs) -> Dict[str, Any]:
         original_shape = list(X.shape)
         feature_names = list(dataset.feature_names) if hasattr(dataset, 'feature_names') and dataset.feature_names is not None else [f'feature_{i}' for i in range(X.shape[1])]
 
-        steps = kwargs['steps']
-        steps_applied = []
+        stage = kwargs.get('stage')
+        steps = kwargs.get('steps')
 
-        from tuiml.hub import registry
-        import tuiml.preprocessing  # noqa: F401 - trigger registration
+        if stage is None and steps is None:
+            return {
+                'status': 'error',
+                'error': "Either 'steps' or 'stage' must be specified for preprocessing."
+            }
 
-        for step in steps:
-            if isinstance(step, str):
-                name, params = step, {}
-            elif isinstance(step, dict):
-                name = step.get('name')
-                params = {k: v for k, v in step.items() if k != 'name'}
+        if stage is not None:
+            # Atomic stage execution
+            stage = stage.strip().lower()
+            if stage == 'split':
+                from pathlib import Path
+                # Get splitting arguments from stage_kwargs
+                stage_kwargs = kwargs.get('stage_kwargs') or {}
+                # Support common aliases
+                n_splits = stage_kwargs.get('kfold') or stage_kwargs.get('n_splits')
+                test_size = stage_kwargs.get('test_size')
+                train_size = stage_kwargs.get('train_size')
+                shuffle = stage_kwargs.get('shuffle', True)
+                stratify_flag = stage_kwargs.get('stratify', False)
+                # Use random_seed or random_state
+                seed = stage_kwargs.get('random_seed') or stage_kwargs.get('random_state') or kwargs.get('random_seed')
+                
+                # Determine output location
+                output = kwargs.get('output') or kwargs.get('save_as')
+                if output:
+                    output_path = Path(output)
+                    if output_path.suffix == '' or output_path.is_dir():
+                        os.makedirs(output_path, exist_ok=True)
+                        prefix = ""
+                        out_dir = output_path
+                    else:
+                        os.makedirs(output_path.parent, exist_ok=True)
+                        prefix = output_path.name.rsplit('.', 1)[0] + "_"
+                        out_dir = output_path.parent
+                else:
+                    import tempfile
+                    out_dir = Path(tempfile.mkdtemp(prefix='tuiml_split_'))
+                    prefix = ""
+
+                out_cols = feature_names[:X.shape[1]] if len(feature_names) >= X.shape[1] else [f'feature_{i}' for i in range(X.shape[1])]
+                
+                # If n_splits is provided, we perform K-Fold / StratifiedKFold split
+                if n_splits is not None:
+                    n_splits = int(n_splits)
+                    from tuiml.evaluation.splitting import KFold, StratifiedKFold
+                    if stratify_flag and y is not None:
+                        splitter = StratifiedKFold(n_splits=n_splits, shuffle=shuffle, random_state=seed)
+                    else:
+                        splitter = KFold(n_splits=n_splits, shuffle=shuffle, random_state=seed)
+                    
+                    split_files = {}
+                    for i, (train_idx, test_idx) in enumerate(splitter.split(X, y)):
+                        X_train, X_test = X[train_idx], X[test_idx]
+                        
+                        df_train = pd.DataFrame(X_train, columns=out_cols)
+                        df_test = pd.DataFrame(X_test, columns=out_cols)
+                        
+                        if y is not None:
+                            target_name = kwargs.get('target', 'target')
+                            df_train[target_name] = y[train_idx]
+                            df_test[target_name] = y[test_idx]
+                        
+                        train_path = out_dir / f"{prefix}train_{i}.csv"
+                        test_path = out_dir / f"{prefix}test_{i}.csv"
+                        
+                        df_train.to_csv(train_path, index=False)
+                        df_test.to_csv(test_path, index=False)
+                        
+                        split_files[f"fold_{i}"] = {
+                            "train": str(train_path),
+                            "test": str(test_path)
+                        }
+                    
+                    return {
+                        'status': 'success',
+                        'stage': 'split',
+                        'split_type': 'kfold',
+                        'n_splits': n_splits,
+                        'files': split_files,
+                        'original_shape': original_shape
+                    }
+                else:
+                    # Simple holdout split (train_test_split)
+                    from tuiml.evaluation.splitting import train_test_split
+                    
+                    # Prepare arguments for train_test_split
+                    split_args = [X]
+                    if y is not None:
+                        split_args.append(y)
+                    
+                    stratify_arr = y if (stratify_flag and y is not None) else None
+                    
+                    splits = train_test_split(
+                        *split_args,
+                        test_size=test_size,
+                        train_size=train_size,
+                        shuffle=shuffle,
+                        stratify=stratify_arr,
+                        random_state=seed
+                    )
+                    
+                    if y is not None:
+                        X_train, X_test, y_train, y_test = splits
+                    else:
+                        X_train, X_test = splits
+                        y_train, y_test = None, None
+                        
+                    df_train = pd.DataFrame(X_train, columns=out_cols)
+                    df_test = pd.DataFrame(X_test, columns=out_cols)
+                    
+                    if y is not None:
+                        target_name = kwargs.get('target', 'target')
+                        df_train[target_name] = y_train
+                        df_test[target_name] = y_test
+                        
+                    train_path = out_dir / f"{prefix}train.csv"
+                    test_path = out_dir / f"{prefix}test.csv"
+                    
+                    df_train.to_csv(train_path, index=False)
+                    df_test.to_csv(test_path, index=False)
+                    
+                    return {
+                        'status': 'success',
+                        'stage': 'split',
+                        'split_type': 'holdout',
+                        'files': {
+                            'train': str(train_path),
+                            'test': str(test_path)
+                        },
+                        'original_shape': original_shape,
+                        'train_shape': list(X_train.shape),
+                        'test_shape': list(X_test.shape)
+                    }
+
             else:
-                continue
-
-            # Resolve preprocessor class
-            preprocessor_cls = None
-            try:
-                preprocessor_cls = registry.get(name)
-            except (KeyError, Exception):
-                pass
-
-            if preprocessor_cls is None:
-                # Fallback: try direct import
-                try:
-                    from tuiml import preprocessing as pp_module
-                    preprocessor_cls = getattr(pp_module, name, None)
-                except ImportError:
-                    pass
-
-            if preprocessor_cls is None:
+                # Other atomic preprocessing stages
+                import tuiml.preprocessing as pp_module
+                
+                stage_kwargs = kwargs.get('stage_kwargs') or {}
+                method = stage_kwargs.get('method')
+                
+                # Filter out params that shouldn't be passed directly to initialization
+                estimator_params = {k: v for k, v in stage_kwargs.items() if k != 'method'}
+                
+                # Check for random_seed / random_state / seed and inject if appropriate
+                seed = stage_kwargs.get('random_seed') or stage_kwargs.get('random_state') or kwargs.get('random_seed')
+                
+                # Map stage to default class and suffix
+                if stage == 'impute':
+                    class_name = 'SimpleImputer'
+                    if method:
+                        if method.lower() in ('knn', 'knnimputer'):
+                            class_name = 'KNNImputer'
+                        elif method.lower() in ('simple', 'simpleimputer'):
+                            class_name = 'SimpleImputer'
+                        else:
+                            class_name = method
+                elif stage == 'balance':
+                    class_name = 'SMOTESampler'
+                    if method:
+                        class_name = method
+                elif stage == 'scale':
+                    class_name = 'StandardScaler'
+                    if method:
+                        class_name = method
+                elif stage == 'encode':
+                    class_name = 'OneHotEncoder'
+                    if method:
+                        class_name = method
+                elif stage == 'discretize':
+                    class_name = 'EqualWidthDiscretizer'
+                    if method:
+                        class_name = method
+                else:
+                    return {
+                        'status': 'error',
+                        'error': f"Unknown preprocessing stage: '{stage}'"
+                    }
+                
+                # Helper to perform case-insensitive attribute lookup
+                def resolve_class_name(name):
+                    if hasattr(pp_module, name):
+                        return name
+                    for attr in dir(pp_module):
+                        if attr.lower() == name.lower():
+                            return attr
+                    return None
+                
+                resolved_name = resolve_class_name(class_name)
+                if not resolved_name:
+                    # Try matching with suffix based on stage
+                    suffix = ""
+                    if stage == 'balance': suffix = 'sampler'
+                    elif stage == 'scale': suffix = 'scaler'
+                    elif stage == 'encode': suffix = 'encoder'
+                    elif stage == 'discretize': suffix = 'discretizer'
+                    elif stage == 'impute': suffix = 'imputer'
+                    
+                    if suffix and not class_name.lower().endswith(suffix):
+                        resolved_name = resolve_class_name(class_name + suffix)
+                
+                if resolved_name:
+                    preprocessor_cls = getattr(pp_module, resolved_name)
+                    class_name = resolved_name
+                else:
+                    # Fallback to registry lookup
+                    from tuiml.hub import registry
+                    try:
+                        preprocessor_cls = registry.get(class_name)
+                    except Exception:
+                        preprocessor_cls = None
+                
+                if preprocessor_cls is None:
+                    return {
+                        'status': 'error',
+                        'error': f"Preprocessor class '{class_name}' for stage '{stage}' not found."
+                    }
+                
+                # If random_seed is supported, inject it
+                import inspect
+                init_sig = inspect.signature(preprocessor_cls.__init__)
+                if seed is not None:
+                    if 'random_state' in init_sig.parameters and 'random_state' not in estimator_params:
+                        estimator_params['random_state'] = seed
+                    elif 'random_seed' in init_sig.parameters and 'random_seed' not in estimator_params:
+                        estimator_params['random_seed'] = seed
+                
+                preprocessor = preprocessor_cls(**estimator_params)
+                
+                if hasattr(preprocessor, 'fit_resample') and y is not None:
+                    X, y = preprocessor.fit_resample(X, y)
+                else:
+                    from tuiml.base.preprocessing import InstanceTransformer
+                    if isinstance(preprocessor, InstanceTransformer):
+                        result = preprocessor.fit_transform(X, y)
+                        X, y = result[0], result[1]
+                    else:
+                        from tuiml.base.preprocessing import SupervisedTransformer
+                        if isinstance(preprocessor, SupervisedTransformer) and y is not None:
+                            X = preprocessor.fit_transform(X, y)
+                        else:
+                            X = preprocessor.fit_transform(X)
+                
+                # Save result
+                output = kwargs.get('output') or kwargs.get('save_as')
+                if output:
+                    from pathlib import Path
+                    output_path = Path(output)
+                    if output_path.is_dir() or output.endswith('/') or output.endswith('\\'):
+                        os.makedirs(output_path, exist_ok=True)
+                        file_path = str(output_path / f"preprocessed_{uuid.uuid4().hex[:8]}.csv")
+                    else:
+                        os.makedirs(output_path.parent, exist_ok=True)
+                        file_path = str(output_path)
+                else:
+                    import tempfile
+                    upload_dir = os.path.join(tempfile.gettempdir(), 'tuiml_preprocessed')
+                    os.makedirs(upload_dir, exist_ok=True)
+                    file_path = os.path.join(upload_dir, f'preprocessed_{uuid.uuid4().hex[:8]}.csv')
+                
+                out_cols = feature_names[:X.shape[1]] if len(feature_names) >= X.shape[1] else [f'feature_{i}' for i in range(X.shape[1])]
+                df = pd.DataFrame(X, columns=out_cols)
+                if y is not None:
+                    target_name = kwargs.get('target', 'target')
+                    df[target_name] = y
+                df.to_csv(file_path, index=False)
+                
                 return {
-                    'status': 'error',
-                    'error': f"Preprocessor '{name}' not found.",
-                    'suggestion': "Use tuiml_list with category='preprocessing' to see available preprocessors."
+                    'status': 'success',
+                    'stage': stage,
+                    'file_path': file_path,
+                    'original_shape': original_shape,
+                    'new_shape': list(X.shape),
+                    'steps_applied': [class_name],
                 }
 
-            preprocessor = preprocessor_cls(**params)
-            if hasattr(preprocessor, 'fit_resample') and y is not None:
-                X, y = preprocessor.fit_resample(X, y)
-            else:
-                from tuiml.base.preprocessing import InstanceTransformer
-                if isinstance(preprocessor, InstanceTransformer):
-                    result = preprocessor.fit_transform(X, y)
-                    X, y = result[0], result[1]
-                else:
-                    X = preprocessor.fit_transform(X)
-
-            steps_applied.append(name)
-
-        # Save result to CSV
-        import pandas as pd
-        save_as = kwargs.get('save_as')
-        if save_as:
-            file_path = save_as
-            os.makedirs(os.path.dirname(os.path.abspath(save_as)) or '.', exist_ok=True)
         else:
-            upload_dir = os.path.join(tempfile.gettempdir(), 'tuiml_preprocessed')
-            os.makedirs(upload_dir, exist_ok=True)
-            file_path = os.path.join(upload_dir, f'preprocessed_{uuid.uuid4().hex[:8]}.csv')
+            # Standard step-by-step pipeline execution
+            steps_applied = []
+            from tuiml.hub import registry
+            import tuiml.preprocessing  # noqa: F401 - trigger registration
 
-        # Build output DataFrame
-        out_cols = feature_names[:X.shape[1]] if len(feature_names) >= X.shape[1] else [f'feature_{i}' for i in range(X.shape[1])]
-        df = pd.DataFrame(X, columns=out_cols)
-        if y is not None:
-            target_name = kwargs.get('target', 'target')
-            df[target_name] = y
-        df.to_csv(file_path, index=False)
+            for step in steps:
+                if isinstance(step, str):
+                    name, params = step, {}
+                elif isinstance(step, dict):
+                    name = step.get('name')
+                    params = {k: v for k, v in step.items() if k != 'name'}
+                else:
+                    continue
 
-        return {
-            'status': 'success',
-            'file_path': file_path,
-            'original_shape': original_shape,
-            'new_shape': list(X.shape),
-            'steps_applied': steps_applied,
-        }
+                # Resolve preprocessor class
+                preprocessor_cls = None
+                try:
+                    preprocessor_cls = registry.get(name)
+                except (KeyError, Exception):
+                    pass
+
+                if preprocessor_cls is None:
+                    # Fallback: try direct import
+                    try:
+                        from tuiml import preprocessing as pp_module
+                        preprocessor_cls = getattr(pp_module, name, None)
+                    except ImportError:
+                        pass
+
+                if preprocessor_cls is None:
+                    return {
+                        'status': 'error',
+                        'error': f"Preprocessor '{name}' not found.",
+                        'suggestion': "Use tuiml_list with category='preprocessing' to see available preprocessors."
+                    }
+
+                preprocessor = preprocessor_cls(**params)
+                if hasattr(preprocessor, 'fit_resample') and y is not None:
+                    X, y = preprocessor.fit_resample(X, y)
+                else:
+                    from tuiml.base.preprocessing import InstanceTransformer
+                    if isinstance(preprocessor, InstanceTransformer):
+                        result = preprocessor.fit_transform(X, y)
+                        X, y = result[0], result[1]
+                    else:
+                        X = preprocessor.fit_transform(X)
+
+                steps_applied.append(name)
+
+            # Save result to CSV
+            save_as = kwargs.get('save_as') or kwargs.get('output')
+            if save_as:
+                file_path = save_as
+                os.makedirs(os.path.dirname(os.path.abspath(save_as)) or '.', exist_ok=True)
+            else:
+                import tempfile
+                upload_dir = os.path.join(tempfile.gettempdir(), 'tuiml_preprocessed')
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, f'preprocessed_{uuid.uuid4().hex[:8]}.csv')
+
+            # Build output DataFrame
+            out_cols = feature_names[:X.shape[1]] if len(feature_names) >= X.shape[1] else [f'feature_{i}' for i in range(X.shape[1])]
+            df = pd.DataFrame(X, columns=out_cols)
+            if y is not None:
+                target_name = kwargs.get('target', 'target')
+                df[target_name] = y
+            df.to_csv(file_path, index=False)
+
+            return {
+                'status': 'success',
+                'file_path': file_path,
+                'original_shape': original_shape,
+                'new_shape': list(X.shape),
+                'steps_applied': steps_applied,
+            }
     except Exception as e:
         return {
             'status': 'error',
@@ -3368,7 +4246,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
         param_grid = kwargs['param_grid']
         cv = kwargs.get('cv', 5)
         scoring = kwargs.get('scoring', 'accuracy')
-        random_state = kwargs.get('random_state')
+        random_seed = kwargs.get('random_seed')
 
         # Collect progress messages
         progress_log = []
@@ -3387,7 +4265,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 param_grid=param_grid,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         elif method == 'random':
@@ -3399,7 +4277,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 n_iter=n_iter,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         elif method == 'bayesian':
@@ -3411,7 +4289,7 @@ def execute_tune(**kwargs) -> Dict[str, Any]:
                 n_iterations=n_iterations,
                 cv=cv,
                 scoring=scoring,
-                random_state=random_state,
+                random_seed=random_seed,
                 progress_callback=_on_progress,
             )
         else:
@@ -3502,7 +4380,9 @@ def execute_read_data(**kwargs) -> Dict[str, Any]:
         elif mode == 'tail':
             subset = df.tail(n_rows)
         elif mode == 'sample':
-            subset = df.sample(n=min(n_rows, len(df)), random_state=42)
+            from tuiml.utils.seed import get_global_seed
+            seed = get_global_seed()
+            subset = df.sample(n=min(n_rows, len(df)), random_state=seed if seed is not None else 42)
         elif mode == 'indices':
             indices = kwargs.get('indices', [])
             indices = [i for i in indices if 0 <= i < len(df)]
@@ -4020,9 +4900,22 @@ def get_workflow_tools() -> Dict[str, Dict]:
 
 def execute_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """Execute a tool by name."""
+    random_seed = kwargs.pop('random_seed', None)
+    if random_seed is not None:
+        from tuiml.utils.seed import set_global_seed
+        set_global_seed(random_seed)
+        if tool_name in ('tuiml_tune', 'tuiml_generate_data'):
+            kwargs['random_seed'] = random_seed
+
     # Check workflow tools first
     if tool_name in TOOL_EXECUTORS:
-        return TOOL_EXECUTORS[tool_name](**kwargs)
+        result = TOOL_EXECUTORS[tool_name](**kwargs)
+        if isinstance(result, dict) and result.get('status') == 'success':
+            from tuiml.utils.seed import get_global_seed
+            effective_seed = random_seed if random_seed is not None else get_global_seed()
+            if effective_seed is not None:
+                result['random_seed'] = effective_seed
+        return result
 
     # For any component tool, ensure full registry is loaded
     from tuiml.agent.registry import get_tool

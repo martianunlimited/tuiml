@@ -171,6 +171,40 @@ class Algorithm(Registrable, ABC):
         self.fit(X, y)
         return self.predict(X)
 
+    def partial_fit(self, X: np.ndarray, y: Optional[np.ndarray] = None, classes: Optional[np.ndarray] = None) -> "Algorithm":
+        """
+        Incrementally fit the model on a batch of samples.
+
+        For algorithms that do not support online learning natively, this fallback
+        accumulates the samples in memory and calls fit() on the entire accumulated dataset.
+        """
+        import warnings
+        warnings.warn(
+            f"{self.__class__.__name__} does not support incremental learning natively. "
+            "Accumulating data in memory and retraining on all accumulated data.",
+            UserWarning,
+            stacklevel=2
+        )
+        
+        # Initialize history if not present
+        if not hasattr(self, "_history_X"):
+            self._history_X = X
+            self._history_y = y
+        else:
+            self._history_X = np.vstack([self._history_X, X])
+            if y is not None:
+                self._history_y = np.concatenate([self._history_y, y])
+                
+        # Update classes_ if classifier
+        if hasattr(self, "classes_") and y is not None:
+            if classes is not None:
+                self.classes_ = np.asarray(classes)
+            elif self.classes_ is None:
+                self.classes_ = np.unique(self._history_y)
+                
+        self.fit(self._history_X, self._history_y)
+        return self
+
     def get_params(self) -> Dict[str, Any]:
         """
         Get algorithm parameters.
@@ -353,15 +387,45 @@ class Classifier(Algorithm):
         """
         Predict class probabilities.
 
+        If the specific classifier does not support probability prediction natively,
+        this method returns a "one-hot" probability representation based on the predicted class labels.
+
         Args:
             X: Test features
 
         Returns:
             Class probabilities (n_samples, n_classes)
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not support probability prediction"
+        import warnings
+        warnings.warn(
+            f"{self.__class__.__name__} does not support probability prediction natively. "
+            "Using a one-hot fallback based on hard predictions.",
+            UserWarning,
+            stacklevel=2
         )
+        
+        self._check_is_fitted()
+        
+        # Predict hard labels
+        preds = self.predict(X)
+        
+        # Get classes_ if available, otherwise get unique elements from predictions
+        classes = getattr(self, "classes_", None)
+        if classes is None:
+            classes = np.unique(preds)
+            
+        n_samples = len(X)
+        n_classes = len(classes)
+        
+        # Build mapping from class value to index
+        class_to_idx = {c: i for i, c in enumerate(classes)}
+        
+        proba = np.zeros((n_samples, n_classes))
+        for i, pred in enumerate(preds):
+            if pred in class_to_idx:
+                proba[i, class_to_idx[pred]] = 1.0
+                
+        return proba
 
 # =============================================================================
 # Clusterer Base Classes
@@ -483,6 +547,15 @@ class UpdateableClusterer(Clusterer):
             Self for method chaining
         """
         pass
+
+    def partial_fit(self, X: np.ndarray, y: Optional[np.ndarray] = None, classes: Optional[np.ndarray] = None) -> "UpdateableClusterer":
+        """Incrementally fit the model on a batch of samples.
+
+        Delegates to the native update() method of the clusterer.
+        """
+        self.update(X)
+        self._is_fitted = True
+        return self
 
 # =============================================================================
 # Regressor Base Class

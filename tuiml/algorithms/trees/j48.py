@@ -612,7 +612,7 @@ class C45TreeClassifier(Classifier):
         sorter = np.argsort(self.classes_)
         y_idx = sorter[np.searchsorted(self.classes_, y, sorter=sorter)]
 
-        all_numeric = np.all(self._is_numeric)
+        all_numeric = np.all(self._is_numeric) and not np.isnan(X).any()
 
         if all_numeric:
             rng = np.random.RandomState(42)

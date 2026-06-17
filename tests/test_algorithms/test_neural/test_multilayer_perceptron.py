@@ -1,13 +1,13 @@
-"""Test suite for MultilayerPerceptronClassifier.
+"""Test suite for MultilayerPerceptronClassifier and MultilayerPerceptronRegressor.
 
-Auto-generated test stub. Please implement comprehensive tests.
+Auto-generated test suite.
 """
 
 import numpy as np
 import pytest
 import pickle
 
-from tuiml.algorithms.neural import MultilayerPerceptronClassifier
+from tuiml.algorithms.neural import MultilayerPerceptronClassifier, MultilayerPerceptronRegressor
 
 
 class TestMultilayerPerceptronClassifierInstantiation:
@@ -35,8 +35,17 @@ class TestMultilayerPerceptronClassifierFitting:
     
     def test_fit_basic(self, binary_cls_data):
         """Test basic fitting."""
-        # TODO: Implement based on algorithm type
-        pass
+        X, y = binary_cls_data
+        model = MultilayerPerceptronClassifier(max_epochs=10, hidden_layers=[5])
+        model.fit(X, y)
+        assert model._is_fitted is True
+        
+        preds = model.predict(X)
+        assert preds.shape == y.shape
+        
+        probas = model.predict_proba(X)
+        assert probas.shape == (len(X), len(model.classes_))
+        assert np.allclose(probas.sum(axis=1), 1.0)
         
     def test_fit_before_predict_raises(self):
         """Test that predict raises error before fit."""
@@ -44,11 +53,80 @@ class TestMultilayerPerceptronClassifierFitting:
         with pytest.raises(RuntimeError, match="must be fitted"):
             model.predict(np.array([[1, 2, 3, 4]]))
 
+    def test_partial_fit(self, binary_cls_data):
+        """Test partial_fit incremental training."""
+        X, y = binary_cls_data
+        classes = np.unique(y)
+        
+        model = MultilayerPerceptronClassifier(hidden_layers=[5])
+        
+        # Split into batches
+        n_samples = len(X)
+        half = n_samples // 2
+        
+        # First batch
+        model.partial_fit(X[:half], y[:half], classes=classes)
+        assert model._is_fitted is True
+        assert model._epoch == 1
+        
+        # Second batch
+        model.partial_fit(X[half:], y[half:])
+        assert model._epoch == 2
+        
+        # Make predictions
+        preds = model.predict(X)
+        assert preds.shape == y.shape
+        
+        probas = model.predict_proba(X)
+        assert probas.shape == (len(X), len(classes))
+        assert np.allclose(probas.sum(axis=1), 1.0)
+
 
 class TestMultilayerPerceptronClassifierSerialization:
     """Tests for serialization."""
     
     def test_pickle_roundtrip(self, binary_cls_data):
         """Test pickle serialization."""
-        # TODO: Implement
-        pass
+        X, y = binary_cls_data
+        model = MultilayerPerceptronClassifier(max_epochs=10, hidden_layers=[5])
+        model.fit(X, y)
+        
+        data = pickle.dumps(model)
+        loaded_model = pickle.loads(data)
+        
+        assert loaded_model._is_fitted is True
+        assert np.array_equal(loaded_model.predict(X), model.predict(X))
+
+
+class TestMultilayerPerceptronRegressorFitting:
+    """Tests for the MultilayerPerceptronRegressor."""
+    
+    def test_fit_basic(self, regression_data):
+        """Test basic fitting."""
+        X, y = regression_data
+        model = MultilayerPerceptronRegressor(max_epochs=10, hidden_layers=[5])
+        model.fit(X, y)
+        assert model._is_fitted is True
+        
+        preds = model.predict(X)
+        assert preds.shape == y.shape
+        
+    def test_partial_fit(self, regression_data):
+        """Test partial_fit incremental training."""
+        X, y = regression_data
+        model = MultilayerPerceptronRegressor(hidden_layers=[5])
+        
+        n_samples = len(X)
+        half = n_samples // 2
+        
+        # First batch
+        model.partial_fit(X[:half], y[:half])
+        assert model._is_fitted is True
+        assert model._epoch == 1
+        
+        # Second batch
+        model.partial_fit(X[half:], y[half:])
+        assert model._epoch == 2
+        
+        preds = model.predict(X)
+        assert preds.shape == y.shape

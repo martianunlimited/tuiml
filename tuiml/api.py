@@ -295,7 +295,7 @@ def train(
     # Data splitting
     test_size: float = 0.2,
     stratify: bool = True,
-    random_state: Optional[int] = 42,
+    random_seed: Optional[int] = None,
     # Cross-validation
     cv: Optional[int] = None,
     # Metrics
@@ -509,9 +509,19 @@ def train(
         elif isinstance(feature_selection, str):
             workflow._feature_selection = {"name": feature_selection}
 
+    # Resolve seed
+    legacy_random_state = kwargs.pop('random_state', None)
+    if random_seed is None:
+        random_seed = legacy_random_state
+    if random_seed is None:
+        from tuiml.utils.seed import get_global_seed
+        random_seed = get_global_seed()
+    if random_seed is None:
+        random_seed = 42
+
     # Configure data splitting
     if cv is None:
-        workflow.split(test_size=test_size, stratify=stratify, random_state=random_state)
+        workflow.split(test_size=test_size, stratify=stratify, random_state=random_seed)
 
     # Set the model
     workflow.train(algo_name, **algo_params)
@@ -705,7 +715,9 @@ def experiment(
     metrics: List[str] = None,
     n_jobs: int = 1,
     verbose: int = 0,
-    progress_callback: Optional[Callable] = None
+    random_seed: Optional[int] = None,
+    progress_callback: Optional[Callable] = None,
+    **kwargs
 ):
     """Run experiments to compare multiple algorithms on multiple datasets.
 
@@ -873,12 +885,23 @@ def experiment(
                     X_ds = pp.fit_transform(X_ds)
             datasets_dict[ds_name] = (X_ds, y_ds)
 
+    # Resolve seed
+    legacy_random_state = kwargs.pop('random_state', None)
+    if random_seed is None:
+        random_seed = legacy_random_state
+    if random_seed is None:
+        from tuiml.utils.seed import get_global_seed
+        random_seed = get_global_seed()
+    if random_seed is None:
+        random_seed = 42
+
     # Run experiment
     exp = run_experiment(
         models=models_dict,
         datasets=datasets_dict,
         n_folds=cv,
         metrics=metrics,
+        random_state=random_seed,
         n_jobs=n_jobs,
         verbose=verbose,
         progress_callback=progress_callback

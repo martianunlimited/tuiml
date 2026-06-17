@@ -860,10 +860,11 @@ def run_experiment(
     datasets: Dict[str, Tuple[np.ndarray, np.ndarray]],
     n_folds: int = 10,
     metrics: List[str] = None,
-    random_state: int = 42,
+    random_seed: Optional[int] = None,
     n_jobs: int = 1,
     verbose: int = 0,
-    progress_callback: Optional[Callable] = None
+    progress_callback: Optional[Callable] = None,
+    **kwargs
 ) -> Experiment:
     """
     Convenience function to run a quick experiment.
@@ -901,9 +902,13 @@ def run_experiment(
     ... )
     >>> print(exp.summary())
     """
+    legacy_random_state = kwargs.pop('random_state', None)
+    if random_seed is None:
+        random_seed = legacy_random_state
+
     config = ExperimentConfig(
         n_folds=n_folds,
-        random_state=random_state,
+        random_seed=random_seed,
         n_jobs=n_jobs,
         verbose=verbose
     )
