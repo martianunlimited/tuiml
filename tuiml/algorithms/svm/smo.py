@@ -218,6 +218,9 @@ class SVC(Classifier):
         self._cpp_model = None
         self._gamma_actual = None
         self._kernel_obj = None  # Actual kernel object
+        self._use_precomputed = None
+        self._X_train = None
+        self._y_train_int = None
 
     @classmethod
     def get_parameter_schema(cls) -> Dict[str, Dict[str, Any]]:
@@ -363,6 +366,38 @@ class SVC(Classifier):
         """
         return getattr(self._kernel_obj, '_libsvm_kernel_type', -1)
 
+    def _train_cpp_model(self, X: np.ndarray, y_int: np.ndarray) -> None:
+        """Train the native SVC model from integer-encoded labels.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Training features.
+        y_int : np.ndarray of shape (n_samples,)
+            Integer-encoded class labels.
+
+        Returns
+        -------
+        None
+            Sets ``self._cpp_model`` in-place.
+        """
+        if self._use_precomputed:
+            # Custom kernel (PUK, String, etc.) — compute kernel matrix in Python
+            K = self._kernel_obj.compute_matrix_cross(X, X)
+            K = np.ascontiguousarray(K, dtype=np.float64)
+            self._cpp_model = _cpp_svm.svc_train_precomputed(
+                K, y_int, self.C, self.tol, self.max_iter
+            )
+        else:
+            # Native kernel — use C++ solver directly
+            X_c = np.ascontiguousarray(X, dtype=np.float64)
+            kt = self._get_kernel_type_int()
+            self._cpp_model = _cpp_svm.svc_train(
+                X_c, y_int, kt, self.C,
+                self._gamma_actual, self.degree, self.coef0,
+                self.tol, self.max_iter
+            )
+
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SVC":
         """Fit the SVC classifier.
 
@@ -396,23 +431,8 @@ class SVC(Classifier):
         # Map labels to integer codes for C++
         label_map = {c: i for i, c in enumerate(self.classes_)}
         y_int = np.array([label_map[yi] for yi in y], dtype=np.intc)
-
-        if self._use_precomputed:
-            # Custom kernel (PUK, String, etc.) — compute kernel matrix in Python
-            K = self._kernel_obj.compute_matrix_cross(X, X)
-            K = np.ascontiguousarray(K, dtype=np.float64)
-            self._cpp_model = _cpp_svm.svc_train_precomputed(
-                K, y_int, self.C, self.tol, self.max_iter
-            )
-        else:
-            # Native kernel — use C++ solver directly
-            X_c = np.ascontiguousarray(X, dtype=np.float64)
-            kt = self._get_kernel_type_int()
-            self._cpp_model = _cpp_svm.svc_train(
-                X_c, y_int, kt, self.C,
-                self._gamma_actual, self.degree, self.coef0,
-                self.tol, self.max_iter
-            )
+        self._y_train_int = y_int.copy()
+        self._train_cpp_model(X, y_int)
 
         # Extract fitted attributes from C++ model
         model = self._cpp_model
@@ -558,6 +578,38 @@ class SVC(Classifier):
     def kernel_(self):
         """Return the actual kernel object used."""
         return self._kernel_obj
+
+    def __getstate__(self) -> Dict[str, Any]:
+        """Return pickle-safe state for persisted SVC models.
+
+        Returns
+        -------
+        state : dict
+            Object state without the live C++ model instance.
+        """
+        state = self.__dict__.copy()
+        state['_cpp_model'] = None
+        state['_kernel_obj'] = None
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        """Restore SVC state and rebuild the native model if fitted.
+
+        Parameters
+        ----------
+        state : dict
+            Pickled object state.
+
+        Returns
+        -------
+        None
+            Updates the current instance in-place.
+        """
+        self.__dict__.update(state)
+
+        if self._is_fitted and self._X_train is not None and self._y_train_int is not None:
+            self._setup_kernel(self._X_train)
+            self._train_cpp_model(self._X_train, self._y_train_int)
 
     def __repr__(self) -> str:
         """String representation."""
