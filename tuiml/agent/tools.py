@@ -51,13 +51,21 @@ _SESSION_SKIP = {
 
 
 def record_session_call(tool_name: str, args: dict, result: dict) -> None:
-    """Record a completed MCP tool call for notebook export.
+    """Record a *successful* MCP tool call for notebook export.
 
-    Called by server.py's call_tool handler after every successful
-    invocation. Strips internal kwargs (_progress_callback, etc.) before
-    storing so the notebook sees only user-visible arguments.
+    Called by server.py's call_tool handler after every invocation. Only
+    successful calls are stored: failed calls (bad algorithm name, schema
+    mismatch, etc.) return ``{"status": "error"}`` rather than raising, and
+    must not become notebook cells — otherwise the exported notebook would
+    raise when re-run. Strips internal kwargs (_progress_callback, etc.)
+    before storing so the notebook sees only user-visible arguments.
     """
     if tool_name in _SESSION_SKIP:
+        return
+    # Skip anything that didn't succeed. Tool executors signal failure via a
+    # status field instead of raising, so a missing/non-success status means
+    # the call produced no reproducible result worth exporting.
+    if not isinstance(result, dict) or result.get('status') != 'success':
         return
     clean_args = {k: v for k, v in args.items() if not k.startswith('_')}
     # Capture the effective random seed. execute_tool resolves the seed (explicit
