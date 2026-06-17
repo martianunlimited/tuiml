@@ -1,5 +1,5 @@
 """
-TuiML - Modern machine learning toolkit inspired by WEKA.
+TuiML - Modern machine learning toolkit.
 
 A Python-based ML framework with a plugin architecture for extensibility.
 
