@@ -4901,20 +4901,22 @@ def get_workflow_tools() -> Dict[str, Dict]:
 def execute_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """Execute a tool by name."""
     random_seed = kwargs.pop('random_seed', None)
-    if random_seed is not None:
-        from tuiml.utils.seed import set_global_seed
-        set_global_seed(random_seed)
-        if tool_name in ('tuiml_tune', 'tuiml_generate_data'):
-            kwargs['random_seed'] = random_seed
+    
+    if random_seed is None:
+        import random
+        random_seed = random.randint(0, 2**31 - 1)
+        
+    from tuiml.utils.seed import set_global_seed
+    set_global_seed(random_seed)
+    
+    if tool_name in ('tuiml_tune', 'tuiml_generate_data', 'tuiml_train', 'tuiml_experiment'):
+        kwargs['random_seed'] = random_seed
 
     # Check workflow tools first
     if tool_name in TOOL_EXECUTORS:
         result = TOOL_EXECUTORS[tool_name](**kwargs)
         if isinstance(result, dict) and result.get('status') == 'success':
-            from tuiml.utils.seed import get_global_seed
-            effective_seed = random_seed if random_seed is not None else get_global_seed()
-            if effective_seed is not None:
-                result['random_seed'] = effective_seed
+            result['random_seed'] = random_seed
         return result
 
     # For any component tool, ensure full registry is loaded
