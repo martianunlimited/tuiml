@@ -28,6 +28,7 @@ from tuiml.algorithms.clustering.em import GaussianMixtureClusterer
 from tuiml.algorithms.clustering.canopy import CanopyClusterer
 from tuiml.algorithms.clustering.cobweb import CobwebClusterer
 from tuiml.algorithms.clustering.filtered_clusterer import FilteredClusterer
+from tuiml.algorithms.clustering.sklearn_kmeans import SklearnKMeansClusterer
 
 __all__ = [
     "Clusterer",
@@ -49,4 +50,5 @@ __all__ = [
     "CanopyClusterer",
     "CobwebClusterer",
     "FilteredClusterer",
+    "SklearnKMeansClusterer",
 ]

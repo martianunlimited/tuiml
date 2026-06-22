@@ -169,6 +169,13 @@ from tuiml.algorithms.timeseries import (
     Prophet,
 )
 
+# Streaming algorithms
+from tuiml.algorithms.streaming import (
+    ADWINDetector,
+    HoeffdingTreeClassifier,
+    AdaptiveRandomForestClassifier,
+)
+
 __all__ = [
     # Base classes
     "Algorithm",
@@ -276,4 +283,8 @@ __all__ = [
     "ExponentialSmoothing",
     "STLDecomposition",
     "Prophet",
+    # Streaming
+    "ADWINDetector",
+    "HoeffdingTreeClassifier",
+    "AdaptiveRandomForestClassifier",
 ]
