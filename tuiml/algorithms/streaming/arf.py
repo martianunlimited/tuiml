@@ -167,6 +167,8 @@ class AdaptiveRandomForestClassifier(Classifier):
         while stream.has_more_instances():
             instance = stream.next_instance()
             pred = self.model_.predict(instance)
+            if pred is None:
+                pred = 0
             preds.append(pred)
             
         return np.array(preds)
