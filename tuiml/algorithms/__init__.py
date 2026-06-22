@@ -56,6 +56,8 @@ from tuiml.algorithms.trees import (
     HoeffdingTreeClassifier,
     M5ModelTreeRegressor,
     LogisticModelTreeClassifier,
+    SklearnRandomForestClassifier,
+    SklearnDecisionTreeClassifier,
 )
 
 # Neighbor-based algorithms
@@ -74,12 +76,14 @@ from tuiml.algorithms.linear import (
     SGDClassifier,
     SGDRegressor,
     SimpleLogisticRegression,
+    SklearnLogisticRegression,
 )
 
 # SVM algorithms
 from tuiml.algorithms.svm import (
     SVC,
     SVR,
+    SklearnSVC,
 )
 
 # Neural networks
@@ -208,6 +212,8 @@ __all__ = [
     "HoeffdingTreeClassifier",
     "M5ModelTreeRegressor",
     "LogisticModelTreeClassifier",
+    "SklearnRandomForestClassifier",
+    "SklearnDecisionTreeClassifier",
     # Neighbors
     "KNearestNeighborsClassifier",
     "KNearestNeighborsRegressor",
@@ -220,9 +226,11 @@ __all__ = [
     "SGDClassifier",
     "SGDRegressor",
     "SimpleLogisticRegression",
+    "SklearnLogisticRegression",
     # SVM
     "SVC",
     "SVR",
+    "SklearnSVC",
     # Neural
     "MultilayerPerceptronClassifier",
     "VotedPerceptronClassifier",

@@ -19,6 +19,8 @@ Algorithms
 - **HoeffdingTreeClassifier:** Streaming decision tree (VFDT).
 - **LogisticModelTreeClassifier:** Logistic Model Trees.
 - **M5ModelTreeRegressor:** Model trees for regression.
+- **SklearnDecisionTreeClassifier:** Scikit-Learn Decision Tree classifier.
+- **SklearnRandomForestClassifier:** Scikit-Learn Random Forest classifier.
 """
 
 from tuiml.algorithms.trees.decision_stump import DecisionStumpClassifier
@@ -33,6 +35,8 @@ from tuiml.algorithms.trees.decision_tree import (
     DecisionTreeClassifier,
     DecisionTreeRegressor,
 )
+from tuiml.algorithms.trees.sklearn_rf import SklearnRandomForestClassifier
+from tuiml.algorithms.trees.sklearn_dt import SklearnDecisionTreeClassifier
 
 __all__ = [
     "DecisionTreeClassifier",
@@ -49,6 +53,8 @@ __all__ = [
     "HoeffdingTreeClassifier",
     "M5ModelTreeRegressor",
     "LogisticModelTreeClassifier",
+    "SklearnRandomForestClassifier",
+    "SklearnDecisionTreeClassifier",
     # Backward compat
     "C45DecisionTreeClassifier",
     "C45DecisionTreeRegressor",

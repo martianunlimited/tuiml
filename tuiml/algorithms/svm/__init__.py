@@ -6,6 +6,8 @@ Algorithms
 ----------
 - **SVC:** SVM classifier using Sequential Minimal Optimization.
 - **SVR:** SVM regressor for regression tasks.
+- **SklearnSVC:** Scikit-Learn SVC wrapper.
+
 
 Kernels
 -------
@@ -20,6 +22,8 @@ Kernels
 
 from tuiml.algorithms.svm.smo import SVC
 from tuiml.algorithms.svm.smoreg import SVR
+from tuiml.algorithms.svm.sklearn_svc import SklearnSVC
+
 
 # Import all kernels for convenience
 from tuiml.algorithms.svm.kernels import (
@@ -39,6 +43,7 @@ from tuiml.algorithms.svm.kernels import (
 __all__ = [
     "SVC",
     "SVR",
+    "SklearnSVC",
     "Kernel",
     "CachedKernel",
     "kernel",

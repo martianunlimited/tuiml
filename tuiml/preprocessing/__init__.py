@@ -56,6 +56,8 @@ from tuiml.preprocessing.scaling import (
     MinMaxScaler,
     StandardScaler,
     CenterScaler,
+    SklearnStandardScaler,
+    SklearnMinMaxScaler,
 )
 
 # Encoding
@@ -145,6 +147,8 @@ __all__ = [
     "MinMaxScaler",
     "StandardScaler",
     "CenterScaler",
+    "SklearnStandardScaler",
+    "SklearnMinMaxScaler",
     # Encoding
     "OneHotEncoder",
     "OrdinalEncoder",
