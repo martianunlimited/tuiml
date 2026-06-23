@@ -10,9 +10,11 @@ Available:
 from tuiml.preprocessing.discretization.equal_width import EqualWidthDiscretizer
 from tuiml.preprocessing.discretization.equal_frequency import QuantileDiscretizer
 from tuiml.preprocessing.discretization.mdl import MDLDiscretizer
+from tuiml.preprocessing.discretization.sklearn_kbins import SklearnKBinsDiscretizer
 
 __all__ = [
     "EqualWidthDiscretizer",
     "QuantileDiscretizer",
     "MDLDiscretizer",
+    "SklearnKBinsDiscretizer",
 ]

@@ -433,8 +433,9 @@ WORKFLOW_TOOLS = {
                     "type": "string",
                     "description": (
                         "Algorithm class name. Examples:\n"
-                        "- Classifiers: 'RandomForestClassifier', 'SVM', 'NaiveBayesClassifier', 'C45TreeClassifier'\n"
-                        "- Regressors: 'LinearRegression', 'M5ModelTreeRegressor'\n"
+                        "- Classifiers: 'RandomForestClassifier', 'SklearnHistGradientBoostingClassifier', 'SklearnGaussianNB', 'SklearnRidgeClassifier'\n"
+                        "- Regressors: 'LinearRegression', 'SklearnLasso', 'SklearnHistGradientBoostingRegressor'\n"
+                        "- Streaming: 'OzaBagClassifier', 'HoeffdingTreeClassifier', 'DDMDetector'\n"
                         "- Clusterers: 'KMeansClusterer', 'GaussianMixtureClusterer', 'DBSCANClusterer'"
                     )
                 },
@@ -461,7 +462,7 @@ WORKFLOW_TOOLS = {
                     },
                     "description": (
                         "Preprocessing steps as names or objects with params.\n"
-                        "Examples: ['SimpleImputer', 'StandardScaler'] or "
+                        "Examples: ['SklearnIterativeImputer', 'StandardScaler'] or "
                         "[{'name': 'SimpleImputer', 'strategy': 'median'}, 'MinMaxScaler']"
                     )
                 },
@@ -1900,7 +1901,7 @@ def execute_train(**kwargs) -> Dict[str, Any]:
         model_path = None
         if result.model:
             model_id = uuid.uuid4().hex[:12]
-            model_path = _save_model_to_disk(result.model, model_id, save_path)
+            model_path = _save_model_to_disk(result, model_id, save_path)
             _MODEL_INDEX[model_id] = model_path
 
         return {
@@ -1946,10 +1947,11 @@ def execute_train(**kwargs) -> Dict[str, Any]:
 
 def _get_model_tags(model) -> List[str]:
     """Get tags from a model if available."""
-    tags = getattr(model, '_tags', [])
+    target = getattr(model, 'model', model)
+    tags = getattr(target, '_tags', [])
     if not tags:
         # Try class-level tags
-        tags = getattr(model.__class__, '_tags', [])
+        tags = getattr(target.__class__, '_tags', [])
     return tags or []
 
 

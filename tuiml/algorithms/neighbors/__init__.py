@@ -19,6 +19,8 @@ from tuiml.algorithms.neighbors.search import (
     KDTree,
     BallTree,
 )
+from tuiml.algorithms.neighbors.sklearn_knn_clf import SklearnKNeighborsClassifier
+from tuiml.algorithms.neighbors.sklearn_knn_reg import SklearnKNeighborsRegressor
 
 __all__ = [
     "KNearestNeighborsClassifier",
@@ -29,4 +31,6 @@ __all__ = [
     "LinearNNSearch",
     "KDTree",
     "BallTree",
+    "SklearnKNeighborsClassifier",
+    "SklearnKNeighborsRegressor",
 ]

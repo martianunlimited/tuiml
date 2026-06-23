@@ -23,6 +23,7 @@ Kernels
 from tuiml.algorithms.svm.smo import SVC
 from tuiml.algorithms.svm.smoreg import SVR
 from tuiml.algorithms.svm.sklearn_svc import SklearnSVC
+from tuiml.algorithms.svm.sklearn_svr import SklearnSVR
 
 
 # Import all kernels for convenience
@@ -44,6 +45,7 @@ __all__ = [
     "SVC",
     "SVR",
     "SklearnSVC",
+    "SklearnSVR",
     "Kernel",
     "CachedKernel",
     "kernel",

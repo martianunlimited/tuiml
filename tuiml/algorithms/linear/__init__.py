@@ -10,6 +10,8 @@ from tuiml.algorithms.linear.simple_linear_regression import SimpleLinearRegress
 from tuiml.algorithms.linear.sgd import SGDClassifier, SGDRegressor
 from tuiml.algorithms.linear.simple_logistic import SimpleLogisticRegression
 from tuiml.algorithms.linear.sklearn_logistic import SklearnLogisticRegression
+from tuiml.algorithms.linear.sklearn_lin_reg import SklearnLinearRegression
+from tuiml.algorithms.linear.sklearn_regularized_linear import SklearnRidge, SklearnRidgeClassifier, SklearnLasso, SklearnElasticNet
 
 __all__ = [
     "LogisticRegression",
@@ -19,4 +21,9 @@ __all__ = [
     "SGDRegressor",
     "SimpleLogisticRegression",
     "SklearnLogisticRegression",
+    "SklearnLinearRegression",
+    "SklearnRidge",
+    "SklearnRidgeClassifier",
+    "SklearnLasso",
+    "SklearnElasticNet",
 ]

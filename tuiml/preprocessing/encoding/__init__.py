@@ -26,10 +26,14 @@ from tuiml.preprocessing.encoding.nominal_to_binary import OneHotEncoder
 from tuiml.preprocessing.encoding.ordinal_to_numeric import OrdinalEncoder
 from tuiml.preprocessing.encoding.string_to_nominal import LabelEncoder
 from tuiml.preprocessing.encoding.merge_infrequent import RareCategoryEncoder
+from tuiml.preprocessing.encoding.sklearn_ohe import SklearnOneHotEncoder
+from tuiml.preprocessing.encoding.sklearn_ordinal import SklearnOrdinalEncoder
 
 __all__ = [
     "OneHotEncoder",
     "OrdinalEncoder",
     "LabelEncoder",
     "RareCategoryEncoder",
+    "SklearnOneHotEncoder",
+    "SklearnOrdinalEncoder",
 ]

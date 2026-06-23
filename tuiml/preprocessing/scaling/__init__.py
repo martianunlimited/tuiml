@@ -14,6 +14,10 @@ from tuiml.preprocessing.scaling.standardize import StandardScaler
 from tuiml.preprocessing.scaling.center import CenterScaler
 from tuiml.preprocessing.scaling.sklearn_standard import SklearnStandardScaler
 from tuiml.preprocessing.scaling.sklearn_minmax import SklearnMinMaxScaler
+from tuiml.preprocessing.scaling.sklearn_robust import SklearnRobustScaler
+from tuiml.preprocessing.scaling.sklearn_normalizer import SklearnNormalizer
+from tuiml.preprocessing.scaling.sklearn_binarizer import SklearnBinarizer
+from tuiml.preprocessing.scaling.sklearn_poly import SklearnPolynomialFeatures
 
 __all__ = [
     "MinMaxScaler",
@@ -21,4 +25,8 @@ __all__ = [
     "CenterScaler",
     "SklearnStandardScaler",
     "SklearnMinMaxScaler",
+    "SklearnRobustScaler",
+    "SklearnNormalizer",
+    "SklearnBinarizer",
+    "SklearnPolynomialFeatures",
 ]

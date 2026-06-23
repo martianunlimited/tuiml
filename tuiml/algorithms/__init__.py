@@ -58,6 +58,10 @@ from tuiml.algorithms.trees import (
     LogisticModelTreeClassifier,
     SklearnRandomForestClassifier,
     SklearnDecisionTreeClassifier,
+    SklearnGradientBoostingClassifier,
+    SklearnGradientBoostingRegressor,
+    SklearnRandomForestRegressor,
+    SklearnDecisionTreeRegressor,
 )
 
 # Neighbor-based algorithms
@@ -66,6 +70,8 @@ from tuiml.algorithms.neighbors import (
     KNearestNeighborsRegressor,
     KStarClassifier,
     LocallyWeightedLearningRegressor,
+    SklearnKNeighborsClassifier,
+    SklearnKNeighborsRegressor,
 )
 
 # Linear algorithms
@@ -77,6 +83,7 @@ from tuiml.algorithms.linear import (
     SGDRegressor,
     SimpleLogisticRegression,
     SklearnLogisticRegression,
+    SklearnLinearRegression,
 )
 
 # SVM algorithms
@@ -84,12 +91,14 @@ from tuiml.algorithms.svm import (
     SVC,
     SVR,
     SklearnSVC,
+    SklearnSVR,
 )
 
 # Neural networks
 from tuiml.algorithms.neural import (
     MultilayerPerceptronClassifier,
     VotedPerceptronClassifier,
+    SklearnMLPClassifier,
 )
 
 # Rule-based algorithms
@@ -214,11 +223,17 @@ __all__ = [
     "LogisticModelTreeClassifier",
     "SklearnRandomForestClassifier",
     "SklearnDecisionTreeClassifier",
+    "SklearnGradientBoostingClassifier",
+    "SklearnGradientBoostingRegressor",
+    "SklearnRandomForestRegressor",
+    "SklearnDecisionTreeRegressor",
     # Neighbors
     "KNearestNeighborsClassifier",
     "KNearestNeighborsRegressor",
     "KStarClassifier",
     "LocallyWeightedLearningRegressor",
+    "SklearnKNeighborsClassifier",
+    "SklearnKNeighborsRegressor",
     # Linear
     "LogisticRegression",
     "LinearRegression",
@@ -227,13 +242,16 @@ __all__ = [
     "SGDRegressor",
     "SimpleLogisticRegression",
     "SklearnLogisticRegression",
+    "SklearnLinearRegression",
     # SVM
     "SVC",
     "SVR",
     "SklearnSVC",
+    "SklearnSVR",
     # Neural
     "MultilayerPerceptronClassifier",
     "VotedPerceptronClassifier",
+    "SklearnMLPClassifier",
     # Rules
     "ZeroRuleClassifier",
     "OneRuleClassifier",

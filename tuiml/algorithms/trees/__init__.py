@@ -37,6 +37,11 @@ from tuiml.algorithms.trees.decision_tree import (
 )
 from tuiml.algorithms.trees.sklearn_rf import SklearnRandomForestClassifier
 from tuiml.algorithms.trees.sklearn_dt import SklearnDecisionTreeClassifier
+from tuiml.algorithms.trees.sklearn_gb_clf import SklearnGradientBoostingClassifier
+from tuiml.algorithms.trees.sklearn_gb_reg import SklearnGradientBoostingRegressor
+from tuiml.algorithms.trees.sklearn_rf_reg import SklearnRandomForestRegressor
+from tuiml.algorithms.trees.sklearn_dt_reg import SklearnDecisionTreeRegressor
+from tuiml.algorithms.trees.sklearn_hist_gb import SklearnHistGradientBoostingClassifier, SklearnHistGradientBoostingRegressor
 
 __all__ = [
     "DecisionTreeClassifier",
@@ -55,6 +60,12 @@ __all__ = [
     "LogisticModelTreeClassifier",
     "SklearnRandomForestClassifier",
     "SklearnDecisionTreeClassifier",
+    "SklearnGradientBoostingClassifier",
+    "SklearnGradientBoostingRegressor",
+    "SklearnRandomForestRegressor",
+    "SklearnDecisionTreeRegressor",
+    "SklearnHistGradientBoostingClassifier",
+    "SklearnHistGradientBoostingRegressor",
     # Backward compat
     "C45DecisionTreeClassifier",
     "C45DecisionTreeRegressor",

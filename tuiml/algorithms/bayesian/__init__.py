@@ -24,6 +24,7 @@ from tuiml.algorithms.bayesian.naive_bayes_multinomial import NaiveBayesMultinom
 from tuiml.algorithms.bayesian.bayes_net import BayesianNetworkClassifier
 from tuiml.algorithms.bayesian.gaussian_processes import GaussianProcessesRegressor
 from tuiml.algorithms.bayesian.bayesian_linear_regression import BayesianLinearRegressor
+from tuiml.algorithms.bayesian.sklearn_naive_bayes import SklearnGaussianNB, SklearnMultinomialNB
 
 from tuiml.algorithms.bayesian import estimators
 from tuiml.algorithms.bayesian.estimators import (
@@ -44,4 +45,6 @@ __all__ = [
     "NormalEstimator",
     "DiscreteEstimator",
     "KernelEstimator",
+    "SklearnGaussianNB",
+    "SklearnMultinomialNB",
 ]

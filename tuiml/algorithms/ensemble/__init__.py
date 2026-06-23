@@ -34,6 +34,7 @@ from tuiml.algorithms.ensemble.random_committee import RandomCommitteeClassifier
 from tuiml.algorithms.ensemble.random_subspace import RandomSubspaceClassifier, RandomSubspaceRegressor
 from tuiml.algorithms.ensemble.multi_class_classifier import MultiClassClassifier
 from tuiml.algorithms.ensemble.filtered_classifier import FilteredClassifier
+from tuiml.algorithms.ensemble.sklearn_adaboost import SklearnAdaBoostClassifier, SklearnAdaBoostRegressor
 
 __all__ = [
     "BaggingClassifier",
@@ -53,4 +54,6 @@ __all__ = [
     "RandomSubspaceRegressor",
     "MultiClassClassifier",
     "FilteredClassifier",
+    "SklearnAdaBoostClassifier",
+    "SklearnAdaBoostRegressor",
 ]

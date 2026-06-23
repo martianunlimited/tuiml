@@ -58,6 +58,10 @@ from tuiml.preprocessing.scaling import (
     CenterScaler,
     SklearnStandardScaler,
     SklearnMinMaxScaler,
+    SklearnRobustScaler,
+    SklearnNormalizer,
+    SklearnBinarizer,
+    SklearnPolynomialFeatures,
 )
 
 # Encoding
@@ -66,12 +70,15 @@ from tuiml.preprocessing.encoding import (
     OrdinalEncoder,
     LabelEncoder,
     RareCategoryEncoder,
+    SklearnOneHotEncoder,
+    SklearnOrdinalEncoder,
 )
 
 # Imputation
 from tuiml.preprocessing.imputation import (
     SimpleImputer,
     KNNImputer,
+    SklearnSimpleImputer,
 )
 
 # Discretization
@@ -79,6 +86,25 @@ from tuiml.preprocessing.discretization import (
     EqualWidthDiscretizer,
     QuantileDiscretizer,
     MDLDiscretizer,
+    SklearnKBinsDiscretizer,
+)
+
+# Decomposition
+from tuiml.preprocessing.decomposition import (
+    SklearnPCA,
+    SklearnIncrementalPCA,
+    SklearnKernelPCA,
+    SklearnSparsePCA,
+    SklearnMiniBatchSparsePCA,
+    SklearnFactorAnalysis,
+    SklearnFastICA,
+    SklearnDictionaryLearning,
+    SklearnMiniBatchDictionaryLearning,
+    SklearnNMF,
+    SklearnMiniBatchNMF,
+    SklearnLatentDirichletAllocation,
+    SklearnSparseCoder,
+    SklearnTruncatedSVD,
 )
 
 # Outliers
@@ -149,18 +175,41 @@ __all__ = [
     "CenterScaler",
     "SklearnStandardScaler",
     "SklearnMinMaxScaler",
+    "SklearnRobustScaler",
+    "SklearnNormalizer",
+    "SklearnBinarizer",
+    "SklearnPolynomialFeatures",
     # Encoding
     "OneHotEncoder",
     "OrdinalEncoder",
     "LabelEncoder",
     "RareCategoryEncoder",
+    "SklearnOneHotEncoder",
+    "SklearnOrdinalEncoder",
     # Imputation
     "SimpleImputer",
     "KNNImputer",
+    "SklearnSimpleImputer",
     # Discretization
     "EqualWidthDiscretizer",
     "QuantileDiscretizer",
     "MDLDiscretizer",
+    "SklearnKBinsDiscretizer",
+    # Decomposition
+    "SklearnPCA",
+    "SklearnIncrementalPCA",
+    "SklearnKernelPCA",
+    "SklearnSparsePCA",
+    "SklearnMiniBatchSparsePCA",
+    "SklearnFactorAnalysis",
+    "SklearnFastICA",
+    "SklearnDictionaryLearning",
+    "SklearnMiniBatchDictionaryLearning",
+    "SklearnNMF",
+    "SklearnMiniBatchNMF",
+    "SklearnLatentDirichletAllocation",
+    "SklearnSparseCoder",
+    "SklearnTruncatedSVD",
     # Outliers
     "IQROutlierDetector",
     "ValueClipper",
