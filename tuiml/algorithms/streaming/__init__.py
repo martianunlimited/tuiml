@@ -9,6 +9,7 @@ from tuiml.algorithms.streaming.hoeffding_tree import HoeffdingTreeClassifier
 from tuiml.algorithms.streaming.arf import AdaptiveRandomForestClassifier
 from tuiml.algorithms.streaming.ddm_detectors import DDMDetector, EDDMDetector
 from tuiml.algorithms.streaming.streaming_ensembles import OzaBagClassifier, LeveragingBagClassifier
+from tuiml.algorithms.streaming.hoeffding_adaptive_tree import HoeffdingAdaptiveTreeClassifier
 
 __all__ = [
     "ADWINDetector",
@@ -18,4 +19,5 @@ __all__ = [
     "EDDMDetector",
     "OzaBagClassifier",
     "LeveragingBagClassifier",
+    "HoeffdingAdaptiveTreeClassifier",
 ]

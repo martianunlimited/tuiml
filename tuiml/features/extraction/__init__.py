@@ -36,10 +36,13 @@ from tuiml.features.extraction.random_projection import (
     SparseRandomProjectionExtractor,
 )
 from tuiml.features.extraction.sklearn_pca import SklearnPCAExtractor
+from tuiml.features.extraction.sklearn_random_projection import SklearnGaussianRandomProjection, SklearnSparseRandomProjection
 
 __all__ = [
     "PCAExtractor",
     "RandomProjectionExtractor",
     "SparseRandomProjectionExtractor",
     "SklearnPCAExtractor",
+    "SklearnGaussianRandomProjection",
+    "SklearnSparseRandomProjection",
 ]

@@ -435,7 +435,7 @@ WORKFLOW_TOOLS = {
                         "Algorithm class name. Examples:\n"
                         "- Classifiers: 'RandomForestClassifier', 'SklearnHistGradientBoostingClassifier', 'SklearnGaussianNB', 'SklearnRidgeClassifier'\n"
                         "- Regressors: 'LinearRegression', 'SklearnLasso', 'SklearnHistGradientBoostingRegressor'\n"
-                        "- Streaming: 'OzaBagClassifier', 'HoeffdingTreeClassifier', 'DDMDetector'\n"
+                        "- Streaming: 'OzaBagClassifier', 'HoeffdingTreeClassifier', 'HoeffdingAdaptiveTreeClassifier', 'DDMDetector'\n"
                         "- Clusterers: 'KMeansClusterer', 'GaussianMixtureClusterer', 'DBSCANClusterer'"
                     )
                 },
@@ -462,7 +462,7 @@ WORKFLOW_TOOLS = {
                     },
                     "description": (
                         "Preprocessing steps as names or objects with params.\n"
-                        "Examples: ['SklearnIterativeImputer', 'StandardScaler'] or "
+                        "Examples: ['SklearnIterativeImputer', 'StandardScaler', 'SklearnGaussianRandomProjection'] or "
                         "[{'name': 'SimpleImputer', 'strategy': 'median'}, 'MinMaxScaler']"
                     )
                 },
