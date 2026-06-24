@@ -218,7 +218,7 @@ def create_server() -> "Server":
     @server.call_tool()
     async def call_tool(name: str, arguments: Dict[str, Any]):
         """Execute any TuiML tool."""
-        from tuiml.agent.tools import execute_tool
+        from tuiml.agent.tools import execute_tool, record_session_call
 
         _trace_call_start(name, arguments)
         _t0 = time.perf_counter()
@@ -277,6 +277,11 @@ def create_server() -> "Server":
 
             duration_ms = int((time.perf_counter() - _t0) * 1000)
             _trace_call_end(name, result, duration_ms, error=None)
+
+            # Record this call in the in-session log for tuiml_export_notebook.
+            # Pass the original client arguments (before _progress_callback injection).
+            record_session_call(name, {k: v for k, v in arguments.items()
+                                       if not k.startswith('_')}, result)
 
             # If the result contains image data, return mixed content
             if '_image_base64' in result:

@@ -1,5 +1,5 @@
 """
-TuiML - Modern machine learning toolkit inspired by WEKA.
+TuiML - Modern machine learning toolkit.
 
 A Python-based ML framework with a plugin architecture for extensibility.
 
@@ -35,7 +35,7 @@ from tuiml.workflow import Workflow, WorkflowResult
 # Agent entry points (tools for every major framework + one-liner agent)
 from tuiml.agent import agent
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 __all__ = [
     # Core registry

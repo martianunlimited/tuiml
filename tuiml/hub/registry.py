@@ -1,5 +1,7 @@
 """Local registry for TuiML components."""
 
+import sys
+from contextlib import contextmanager
 from typing import Dict, List, Optional, Any, Type, Callable, Union
 
 from tuiml.hub.types import ComponentType, Registrable
@@ -39,7 +41,28 @@ class Registry:
             cls._instance._components = {}
             cls._instance._type_index = {t: [] for t in ComponentType}
             cls._instance._hooks = {"on_register": [], "on_unregister": []}
+            cls._instance._suppress_overwrite_warnings = False
         return cls._instance
+
+    @contextmanager
+    def suppress_overwrite_warnings(self):
+        """Temporarily silence the "already registered" overwrite warning.
+
+        Used for intentional re-registration — e.g. reloading user algorithms
+        at startup or after creating a new version — where overwriting the
+        existing entry is the expected behavior, not an accidental name clash.
+
+        Yields
+        ------
+        None
+            The context within which overwrite warnings are suppressed.
+        """
+        prev = getattr(self, "_suppress_overwrite_warnings", False)
+        self._suppress_overwrite_warnings = True
+        try:
+            yield
+        finally:
+            self._suppress_overwrite_warnings = prev
 
     def register(
         self,
@@ -107,9 +130,15 @@ class Registry:
 
             component_name = info["name"]
 
-            # Warn if already registered
-            if component_name in self._components:
-                print(f"Warning: Component '{component_name}' is already registered. Overwriting.")
+            # Warn if already registered, unless the overwrite is intentional
+            # (e.g. reloading a user algorithm). Route to stderr so the message
+            # never corrupts an MCP stdio JSON-RPC stream on stdout.
+            if (component_name in self._components
+                    and not getattr(self, "_suppress_overwrite_warnings", False)):
+                print(
+                    f"Warning: Component '{component_name}' is already registered. Overwriting.",
+                    file=sys.stderr,
+                )
 
             # Store in registry
             self._components[component_name] = {

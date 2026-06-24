@@ -33,6 +33,56 @@ for _f in os.listdir(_UPLOADS_DIR):
 # Serving state: tracks running API servers
 _SERVING_SERVERS: Dict[str, Dict[str, Any]] = {}  # server_id -> {thread, server, port, ...}
 
+# Session call log — populated by record_session_call() which server.py calls
+# after every successful tool invocation. Used by tuiml_export_notebook.
+import threading as _threading
+_SESSION_CALLS: List[Dict] = []          # [{tool, args}, ...]
+_SESSION_LOCK = _threading.Lock()
+_MODEL_ID_TO_VAR: Dict[str, str] = {}   # model_id -> "result_N"
+_TRAIN_CALL_SEQ: List[int] = []         # indices into _SESSION_CALLS for train calls
+
+# Tools that produce no reproducible Python code (discovery / admin)
+_SESSION_SKIP = {
+    'tuiml_export_notebook', 'tuiml_list', 'tuiml_search', 'tuiml_describe',
+    'tuiml_server_status', 'tuiml_system_info', 'tuiml_restart', 'tuiml_self_update',
+    'tuiml_read_data', 'tuiml_list_files', 'tuiml_search_source',
+    'tuiml_read_algorithm',
+}
+
+
+def record_session_call(tool_name: str, args: dict, result: dict) -> None:
+    """Record a *successful* MCP tool call for notebook export.
+
+    Called by server.py's call_tool handler after every invocation. Only
+    successful calls are stored: failed calls (bad algorithm name, schema
+    mismatch, etc.) return ``{"status": "error"}`` rather than raising, and
+    must not become notebook cells — otherwise the exported notebook would
+    raise when re-run. Strips internal kwargs (_progress_callback, etc.)
+    before storing so the notebook sees only user-visible arguments.
+    """
+    if tool_name in _SESSION_SKIP:
+        return
+    # Skip anything that didn't succeed. Tool executors signal failure via a
+    # status field instead of raising, so a missing/non-success status means
+    # the call produced no reproducible result worth exporting.
+    if not isinstance(result, dict) or result.get('status') != 'success':
+        return
+    clean_args = {k: v for k, v in args.items() if not k.startswith('_')}
+    # Capture the effective random seed. execute_tool resolves the seed (explicit
+    # arg → global seed → default) and writes it back into the *result*, not the
+    # args. Fold it into the recorded args so the exported notebook reproduces the
+    # exact run even when the seed was auto-resolved rather than passed explicitly.
+    if isinstance(result, dict) and result.get('random_seed') is not None \
+            and 'random_seed' not in clean_args:
+        clean_args['random_seed'] = result['random_seed']
+    with _SESSION_LOCK:
+        idx = len(_SESSION_CALLS)
+        _SESSION_CALLS.append({'tool': tool_name, 'args': clean_args})
+        if tool_name == 'tuiml_train' and isinstance(result, dict) and result.get('model_id'):
+            n = len(_TRAIN_CALL_SEQ) + 1
+            _MODEL_ID_TO_VAR[result['model_id']] = f'result_{n}'
+            _TRAIN_CALL_SEQ.append(idx)
+
 
 def _save_model_to_disk(model, model_id: str, save_path: str = None) -> str:
     """Save model to disk and return the file path."""
@@ -396,6 +446,18 @@ OUTPUT_SCHEMAS = {
             "columns": {"type": "array", "items": {"type": "string"}},
             "n_rows_returned": {"type": "integer"},
             "rows": {"type": "array", "items": {"type": "object"}},
+            "error": {"type": "string"}
+        },
+        "required": ["status"]
+    },
+    "tuiml_export_notebook": {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["success", "error"]},
+            "path": {"type": "string", "description": "Absolute path to the written .ipynb file"},
+            "cells": {"type": "integer", "description": "Total number of notebook cells"},
+            "workflow_calls": {"type": "integer", "description": "Number of MCP calls translated"},
+            "message": {"type": "string"},
             "error": {"type": "string"}
         },
         "required": ["status"]
@@ -1387,6 +1449,33 @@ WORKFLOW_TOOLS = {
                     "default": True,
                 },
             },
+        },
+    },
+    "tuiml_export_notebook": {
+        "name": "tuiml_export_notebook",
+        "description": (
+            "Export the current MCP chat session as a reproducible Jupyter notebook (.ipynb). "
+            "Training, experiment, tuning, plotting, and data-prep steps performed in this "
+            "session are translated to equivalent Python API calls so the user can re-run the "
+            "full workflow without the AI client. "
+            "Call this at the end of a session when the user wants to save their work as a notebook."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": (
+                        "Destination file path for the notebook. "
+                        "Defaults to ~/tuiml_session.ipynb if omitted."
+                    ),
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Optional custom title for the notebook header cell.",
+                },
+            },
+            "required": [],
         },
     },
 }
@@ -4704,6 +4793,618 @@ def execute_restart(**kwargs) -> Dict[str, Any]:
 
 
 # =============================================================================
+# Notebook Export
+# =============================================================================
+
+def _nb_markdown(lines: List[str]) -> Dict:
+    return {"cell_type": "markdown", "id": uuid.uuid4().hex[:8],
+            "metadata": {}, "source": lines}
+
+
+def _nb_code(lines: List[str]) -> Dict:
+    return {"cell_type": "code", "id": uuid.uuid4().hex[:8],
+            "execution_count": None, "metadata": {}, "outputs": [],
+            "source": lines}
+
+
+def _repr_arg(v: Any) -> str:
+    """Compact repr for a single arg value."""
+    if isinstance(v, str):
+        return repr(v)
+    if isinstance(v, list):
+        return repr(v)
+    if isinstance(v, dict):
+        return repr(v)
+    return repr(v)
+
+
+def _call_to_kwargs_str(args: dict, skip: set = None, indent: int = 4) -> str:
+    """Format a dict of args as indented keyword arguments."""
+    pad = ' ' * indent
+    skip = skip or set()
+    lines = []
+    for k, v in args.items():
+        if k in skip or v is None:
+            continue
+        lines.append(f"{pad}{k}={_repr_arg(v)},")
+    return '\n'.join(lines)
+
+
+def _data_load_lines(data: str) -> List[str]:
+    """Return lines that load `data` into variable `_dataset`."""
+    if data and os.path.isfile(os.path.expanduser(data)):
+        return [
+            f"import pandas as _pd\n",
+            f"_df = _pd.read_csv({repr(data)})\n",
+            f"_X = _df.iloc[:, :-1].values\n",
+            f"_y = _df.iloc[:, -1].values",
+        ]
+    # assume builtin dataset name
+    return [f"_dataset = load_dataset({repr(data)})"]
+
+
+def _resolve_model_var(model_id: Optional[str], fallback: str = "model_1") -> str:
+    """Map a model_id back to the Python variable name used in the notebook."""
+    if model_id and model_id in _MODEL_ID_TO_VAR:
+        return _MODEL_ID_TO_VAR[model_id]
+    return fallback
+
+
+def _translate_call(call: Dict, train_counter: List[int]) -> tuple:
+    """Translate one session call → (markdown_lines, code_lines) or (None, None) to skip."""
+    tool = call['tool']
+    args = call['args']
+
+    # ── tuiml_profile_data ───────────────────────────────────────────────────
+    if tool == 'tuiml_profile_data':
+        data = args.get('data', '')
+        target = args.get('target')
+        md = [
+            f"## Data Profiling — `{data}`\n",
+            f"> `tuiml_profile_data(data={repr(data)}`",
+        ]
+        code = _data_load_lines(data) + [
+            "\n",
+            "import pandas as pd\n",
+            "_df_profile = pd.DataFrame(_dataset.X, columns=_dataset.feature_names)\n",
+        ]
+        if target:
+            code.append(f"_df_profile[{repr(target)}] = _dataset.y\n")
+        code += [
+            "print(f'Shape: {_df_profile.shape}')\n",
+            "print(f'Missing values: {_df_profile.isnull().sum().sum()}')\n",
+        ]
+        if target:
+            code.append(f"print('Class distribution:\\n', _df_profile[{repr(target)}].value_counts())\n")
+        code.append("_df_profile.describe()")
+        return md, code
+
+    # ── tuiml_train ──────────────────────────────────────────────────────────
+    if tool == 'tuiml_train':
+        train_counter[0] += 1
+        n = train_counter[0]
+        algo = args.get('algorithm', 'UnknownAlgorithm')
+        data = args.get('data', '')
+        # tuiml.train() takes algorithm hyperparameters as direct **kwargs, not
+        # as an 'algorithm_params' dict (that wrapper is MCP-tool-only). Flatten
+        # it so the generated call is valid Python rather than passing an
+        # unexpected 'algorithm_params=' keyword.
+        flat_args = {k: v for k, v in args.items() if k != 'algorithm_params'}
+        algo_params = args.get('algorithm_params')
+        if isinstance(algo_params, dict):
+            for pk, pv in algo_params.items():
+                flat_args.setdefault(pk, pv)
+        kwargs_str = _call_to_kwargs_str(flat_args)
+        md = [
+            f"## Train `{algo}` (step {n})\n",
+            f"> `tuiml_train(algorithm={repr(algo)}, data={repr(data)}, ...)`",
+        ]
+        code = [
+            f"result_{n} = tuiml.train(\n",
+            kwargs_str + "\n",
+            ")\n",
+            f"model_{n} = result_{n}.model\n",
+            f"print('Metrics:', result_{n}.metrics)",
+        ]
+        return md, code
+
+    # ── tuiml_predict ────────────────────────────────────────────────────────
+    if tool == 'tuiml_predict':
+        model_id = args.get('model_id')
+        var = _resolve_model_var(model_id)
+        result_var = var  # e.g. result_1
+        model_var = var.replace('result_', 'model_')
+        data = args.get('data', '')
+        md = [
+            f"## Predict with `{result_var}`\n",
+            f"> `tuiml_predict(model_id=..., data={repr(data)})`",
+        ]
+        code = _data_load_lines(data) + [
+            "\n",
+            f"predictions = tuiml.predict({model_var}, _dataset.X)\n",
+            "print('Predictions (first 10):', predictions[:10])",
+        ]
+        return md, code
+
+    # ── tuiml_evaluate ───────────────────────────────────────────────────────
+    if tool == 'tuiml_evaluate':
+        model_id = args.get('model_id')
+        var = _resolve_model_var(model_id)
+        model_var = var.replace('result_', 'model_')
+        data = args.get('data', '')
+        target = args.get('target')
+        metrics = args.get('metrics')
+        md = [
+            f"## Evaluate `{model_var}`\n",
+            f"> `tuiml_evaluate(model_id=..., data={repr(data)})`",
+        ]
+        code = _data_load_lines(data) + [
+            "\n",
+            f"eval_metrics = tuiml.evaluate(\n",
+            f"    {model_var}, _dataset.X, _dataset.y,\n",
+        ]
+        if metrics:
+            code.append(f"    metrics={repr(metrics)},\n")
+        code += [")\n", "print('Eval metrics:', eval_metrics)"]
+        return md, code
+
+    # ── tuiml_experiment ─────────────────────────────────────────────────────
+    if tool == 'tuiml_experiment':
+        algos = args.get('algorithms', [])
+        data_arg = args.get('data', [])
+        if isinstance(data_arg, str):
+            data_arg = [data_arg]
+        cv = args.get('cv', 10)
+        metrics = args.get('metrics')
+        md = [
+            f"## Experiment — {', '.join(algos)}\n",
+            f"> `tuiml_experiment(algorithms={algos}, data={data_arg}, cv={cv})`",
+        ]
+        code = []
+        for ds_name in data_arg:
+            safe = ds_name.replace('-', '_').replace('/', '_')
+            code.append(f"_{safe} = load_dataset({repr(ds_name)})\n")
+        datasets_dict = "{" + ", ".join(
+            f"{repr(d)}: (_{d.replace('-','_').replace('/','_')}.X, "
+            f"_{d.replace('-','_').replace('/','_')}.y)"
+            for d in data_arg
+        ) + "}"
+        code += [
+            "\n",
+            "exp = tuiml.experiment(\n",
+            f"    algorithms={repr(algos)},\n",
+            f"    datasets={datasets_dict},\n",
+            f"    cv={cv},\n",
+        ]
+        if metrics:
+            code.append(f"    metrics={repr(metrics)},\n")
+        seed = args.get('random_seed')
+        if seed is not None:
+            code.append(f"    random_seed={repr(seed)},\n")
+        code += [")\n", "print(exp.summary())"]
+        return md, code
+
+    # ── tuiml_tune ───────────────────────────────────────────────────────────
+    if tool == 'tuiml_tune':
+        algo = args.get('algorithm', '')
+        data = args.get('data', '')
+        method = args.get('method', 'random')
+        param_grid = args.get('param_grid', {})
+        cv = args.get('cv', 5)
+        scoring = args.get('scoring', 'accuracy_score')
+        n_iter = args.get('n_iter', 10)
+        n_iterations = args.get('n_iterations', 50)
+        # Prefer an explicit random_state, then the effective session seed folded
+        # in by record_session_call, then the default — so tuning reproduces.
+        random_state = args.get('random_state', args.get('random_seed', 42))
+        cls_map = {'grid': 'GridSearchCV', 'random': 'RandomSearchCV', 'bayesian': 'BayesianSearchCV'}
+        tuner_cls = cls_map.get(method, 'RandomSearchCV')
+        param_kw = 'param_grid' if method == 'grid' else ('param_space' if method == 'bayesian' else 'param_distributions')
+        n_kw_line = (f"    n_iter={n_iter},\n" if method == 'random'
+                     else f"    n_iterations={n_iterations},\n" if method == 'bayesian' else "")
+        md = [
+            f"## Hyperparameter Tuning — `{algo}` ({method} search)\n",
+            f"> `tuiml_tune(algorithm={repr(algo)}, method={repr(method)}, ...)`",
+        ]
+        code = [
+            "from tuiml.hub import registry as _registry\n",
+            "import tuiml.algorithms as _\n",
+            f"from tuiml.evaluation.tuning import {tuner_cls}\n",
+            "\n",
+            *_data_load_lines(data), "\n",
+            f"_cls = _registry.get({repr(algo)})\n",
+            f"tuner = {tuner_cls}(\n",
+            f"    estimator=_cls(),\n",
+            f"    {param_kw}={repr(param_grid)},\n",
+            f"    cv={cv},\n",
+            f"    scoring={repr(scoring)},\n",
+            n_kw_line,
+            f"    random_state={random_state},\n",
+            ")\n",
+            "tuner.fit(_dataset.X, _dataset.y)\n",
+            "print('Best params:', tuner.best_params_)\n",
+            "print('Best score: ', tuner.best_score_)",
+        ]
+        return md, code
+
+    # ── tuiml_plot ───────────────────────────────────────────────────────────
+    if tool == 'tuiml_plot':
+        plot_type = args.get('plot_type', '')
+        model_id = args.get('model_id')
+        var = _resolve_model_var(model_id)
+        model_var = var.replace('result_', 'model_')
+        data = args.get('data', '')
+        target = args.get('target', '')
+        algo = args.get('algorithm', '')
+        title = args.get('title') or f"{plot_type.replace('_', ' ').title()}"
+
+        md = [
+            f"## Plot — `{plot_type}`\n",
+            f"> `tuiml_plot(plot_type={repr(plot_type)}, ...)`",
+        ]
+
+        if plot_type == 'confusion_matrix':
+            code = (
+                _data_load_lines(data) + ["\n",
+                "from tuiml.evaluation.visualization import plot_confusion_matrix\n",
+                f"_preds = tuiml.predict({model_var}, _dataset.X)\n",
+                f"plot_confusion_matrix(_dataset.y, _preds, title={repr(title)})\n",
+                "plt.show()",
+            ])
+        elif plot_type == 'roc_curve':
+            code = (
+                _data_load_lines(data) + ["\n",
+                "from tuiml.evaluation.visualization import plot_roc_curve\n",
+                f"_probas = {model_var}.predict_proba(_dataset.X)\n",
+                f"plot_roc_curve(_dataset.y, _probas, title={repr(title)})\n",
+                "plt.show()",
+            ])
+        elif plot_type == 'pr_curve':
+            code = (
+                _data_load_lines(data) + ["\n",
+                "from tuiml.evaluation.visualization import plot_pr_curve\n",
+                f"_probas = {model_var}.predict_proba(_dataset.X)\n",
+                "# PR curve takes positive-class scores; pick column 1 if 2-D.\n",
+                "_score = _probas[:, 1] if _probas.ndim == 2 else _probas\n",
+                f"plot_pr_curve(_dataset.y, _score, title={repr(title)})\n",
+                "plt.show()",
+            ])
+        elif plot_type == 'feature_importance':
+            code = [
+                f"_importances = getattr({model_var}, 'feature_importances_', None)\n",
+                f"if _importances is None and {var}.feature_importance:\n",
+                f"    _importances = list({var}.feature_importance.values())\n",
+                "plt.figure(figsize=(10, 5))\n",
+                "plt.bar(range(len(_importances)), _importances)\n",
+                f"plt.title({repr(title)})\n",
+                "plt.xlabel('Feature Index'); plt.ylabel('Importance')\n",
+                "plt.tight_layout(); plt.show()",
+            ]
+        elif plot_type == 'learning_curve':
+            # plot_learning_curve takes precomputed (train_sizes, train_scores,
+            # test_scores), so compute them here over increasing train subsets.
+            code = (
+                _data_load_lines(data) + ["\n",
+                "import numpy as np\n",
+                "from tuiml.evaluation.visualization import plot_learning_curve\n",
+                "from tuiml.hub import registry\n",
+                "import tuiml.algorithms  # noqa: F401 — registers algorithms\n",
+                "from tuiml.evaluation.splitting import train_test_split\n",
+                "from tuiml.evaluation.metrics import accuracy_score\n",
+                f"_cls = registry.get({repr(algo)})\n",
+                "_Xtr, _Xte, _ytr, _yte = train_test_split(\n",
+                "    _dataset.X, _dataset.y, test_size=0.25, random_state=42)\n",
+                "_sizes, _train_sc, _test_sc = [], [], []\n",
+                "for _frac in np.linspace(0.2, 1.0, 5):\n",
+                "    _n = max(2, int(len(_Xtr) * _frac))\n",
+                "    _m = _cls(); _m.fit(_Xtr[:_n], _ytr[:_n])\n",
+                "    _sizes.append(_n)\n",
+                "    _train_sc.append(accuracy_score(_ytr[:_n], _m.predict(_Xtr[:_n])))\n",
+                "    _test_sc.append(accuracy_score(_yte, _m.predict(_Xte)))\n",
+                "plot_learning_curve(np.array(_sizes), np.array(_train_sc),\n",
+                f"                    np.array(_test_sc), title={repr(title)})\n",
+                "plt.show()",
+            ])
+        elif plot_type in ('cd_diagram', 'boxplot_comparison', 'heatmap', 'ranking_table'):
+            exp_results = args.get('experiment_results', {})
+            # cd_diagram maps to plot_critical_difference; all take the scores
+            # dict as the first positional argument (not 'experiment_results=').
+            fn = 'plot_critical_difference' if plot_type == 'cd_diagram' else f'plot_{plot_type}'
+            code = [
+                "import numpy as np\n",
+                f"from tuiml.evaluation.visualization import {fn}\n",
+                f"_exp = {{k: np.array(v, dtype=float) for k, v in {repr(exp_results)}.items()}}\n",
+                f"{fn}(_exp)\n",
+                "plt.show()",
+            ]
+        else:
+            return None, None
+
+        return md, code
+
+    # ── tuiml_save_model ─────────────────────────────────────────────────────
+    if tool == 'tuiml_save_model':
+        model_id = args.get('model_id')
+        dest = args.get('destination', './model.joblib')
+        var = _resolve_model_var(model_id)
+        model_var = var.replace('result_', 'model_')
+        md = [
+            f"## Save Model → `{dest}`\n",
+            f"> `tuiml_save_model(model_id=..., destination={repr(dest)})`",
+        ]
+        # Use tuiml.save/tuiml.load (model serialization) — they are a matched
+        # pair. WorkflowResult.save() writes a different format that tuiml.load
+        # can't read back.
+        code = [
+            f"tuiml.save({model_var}, {repr(dest)})\n",
+            f"print('Model saved to {dest}')\n",
+            "\n",
+            f"# Verify reload\n",
+            f"_reloaded = tuiml.load({repr(dest)})\n",
+            f"print('Reloaded:', _reloaded)",
+        ]
+        return md, code
+
+    # ── tuiml_generate_data ──────────────────────────────────────────────────
+    if tool == 'tuiml_generate_data':
+        gen = args.get('generator', '')
+        n_samples = args.get('n_samples', 100)
+        kw = _call_to_kwargs_str({k: v for k, v in args.items() if k != 'generator'})
+        md = [
+            f"## Generate Synthetic Data — `{gen}`\n",
+            f"> `tuiml_generate_data(generator={repr(gen)}, n_samples={n_samples})`",
+        ]
+        code = [
+            f"from tuiml.datasets.generators import {gen}\n",
+            f"_gen = {gen}(\n",
+            kw + "\n",
+            ")\n",
+            "_gen_dataset = _gen.generate()\n",
+            "print(f'Generated: {_gen_dataset.X.shape}')",
+        ]
+        return md, code
+
+    # ── tuiml_preprocess ─────────────────────────────────────────────────────
+    if tool == 'tuiml_preprocess':
+        data = args.get('data', '')
+        steps = args.get('steps', [])
+        target = args.get('target')
+        # Normalize steps to a list of step names.
+        step_list = steps if isinstance(steps, list) else [steps]
+        step_list = [s for s in step_list if s]
+        md = [
+            f"## Preprocess Data — {step_list}\n",
+            f"> `tuiml_preprocess(data={repr(data)}, steps={step_list})`",
+        ]
+        code = _data_load_lines(data) + ["\n", "_X_pre = _dataset.X\n"]
+        for step in step_list:
+            code += [
+                f"from tuiml.preprocessing import {step}\n",
+                f"_X_pre = {step}().fit_transform(_X_pre)\n",
+            ]
+        code.append("print(f'Preprocessed shape: {_X_pre.shape}')")
+        return md, code
+
+    # ── tuiml_select_features ────────────────────────────────────────────────
+    if tool == 'tuiml_select_features':
+        data = args.get('data', '')
+        method = args.get('method', '')
+        target = args.get('target', '')
+        k = args.get('k')
+        md = [
+            f"## Feature Selection — `{method}`\n",
+            f"> `tuiml_select_features(data={repr(data)}, method={repr(method)})`",
+        ]
+        init_args = {}
+        if k:
+            init_args['k'] = k
+        init_str = ', '.join(f'{kk}={repr(vv)}' for kk, vv in init_args.items())
+        code = (
+            _data_load_lines(data) + ["\n",
+            f"from tuiml.features.selection import {method}\n",
+            f"_selector = {method}({init_str})\n",
+            "_selector.fit(_dataset.X, _dataset.y)\n",
+            "_X_selected = _selector.transform(_dataset.X)\n",
+            "print(f'Features: {_dataset.X.shape[1]} → {_X_selected.shape[1]}')\n",
+            "if hasattr(_selector, 'selected_indices_'):\n",
+            "    print('Selected indices:', _selector.selected_indices_)",
+        ])
+        return md, code
+
+    # ── tuiml_test_statistics ────────────────────────────────────────────────
+    if tool == 'tuiml_test_statistics':
+        test = args.get('test', '')
+        results = args.get('results', {})
+        alpha = args.get('significance_level', 0.05)
+        md = [
+            f"## Statistical Test — `{test}`\n",
+            f"> `tuiml_test_statistics(test={repr(test)}, ...)`",
+        ]
+        # Statistical tests are functions in tuiml.evaluation.statistics, not
+        # classes. Map each test to its function and call shape (mirrors the
+        # tuiml_test_statistics executor).
+        fn_map = {
+            'friedman': 'friedman_test', 'nemenyi': 'nemenyi_post_hoc',
+            'wilcoxon': 'wilcoxon_signed_rank_test', 'paired_t': 'paired_t_test',
+            'anova': 'one_way_anova', 'friedman_aligned': 'friedman_aligned_ranks_test',
+            'quade': 'quade_test',
+        }
+        fn = fn_map.get(test, 'friedman_test')
+        code = [
+            "import numpy as np\n",
+            f"from tuiml.evaluation.statistics import {fn}\n",
+            f"_results = {{k: np.array(v, dtype=float) for k, v in {repr(results)}.items()}}\n",
+        ]
+        if test in ('friedman', 'friedman_aligned', 'quade'):
+            code += [
+                f"statistic, p_value, significant = {fn}(_results, significance_level={alpha})\n",
+                "print('Statistic:', statistic)\n",
+                "print('p-value:  ', p_value)\n",
+                "print('Significant:', significant)",
+            ]
+        elif test == 'anova':
+            code += [
+                f"f_stat, p_value, significant = {fn}(*_results.values(), significance_level={alpha})\n",
+                "print('F-statistic:', f_stat)\n",
+                "print('p-value:    ', p_value)\n",
+                "print('Significant:', significant)",
+            ]
+        elif test in ('wilcoxon', 'paired_t'):
+            code += [
+                "_names = list(_results.keys())\n",
+                "_x, _y = _results[_names[0]], _results[_names[1]]\n",
+                f"_stats = {fn}(_x, _y, significance_level={alpha})\n",
+                "print('Statistic:', _stats.t_statistic)\n",
+                "print('p-value:  ', _stats.p_value)\n",
+                "print('Significant:', _stats.is_significant())",
+            ]
+        else:  # nemenyi
+            code += [
+                f"_pairwise = {fn}(_results, significance_level={alpha})\n",
+                "for _pair, _sig in _pairwise.items():\n",
+                "    print(_pair, '→ significant:', bool(_sig))",
+            ]
+        return md, code
+
+    # ── tuiml_upload_data ────────────────────────────────────────────────────
+    if tool == 'tuiml_upload_data':
+        file_path = args.get('file_path', '')
+        name = args.get('name', '')
+        md = [
+            f"## Load Dataset — `{name or file_path}`\n",
+            f"> `tuiml_upload_data(file_path={repr(file_path)})`",
+        ]
+        if file_path:
+            code = [
+                "import pandas as pd\n",
+                f"_df = pd.read_csv({repr(file_path)})\n",
+                "print(_df.shape)\n",
+                "_df.head()",
+            ]
+        else:
+            code = [f"# Dataset '{name}' was registered inline — recreate from source"]
+        return md, code
+
+    return None, None  # skip unhandled tools
+
+
+def execute_export_notebook(**kwargs) -> Dict[str, Any]:
+    """Export the current MCP session as a reproducible Jupyter notebook."""
+    import json
+    import datetime as _dt
+
+    path = os.path.expanduser(kwargs.get('path') or '~/tuiml_session.ipynb')
+    title = kwargs.get('title', 'TuiML Session — Exported Notebook')
+
+    with _SESSION_LOCK:
+        calls_snapshot = list(_SESSION_CALLS)
+
+    if not calls_snapshot:
+        return {
+            'status': 'error',
+            'error': (
+                'No workflow calls have been recorded in this session yet. '
+                'Run some tuiml_train / tuiml_experiment / tuiml_plot calls first.'
+            ),
+        }
+
+    cells = []
+
+    # ── Header cell ──────────────────────────────────────────────────────────
+    cells.append(_nb_markdown([
+        f"# {title}\n",
+        f"\n",
+        f"Exported from MCP session · {_dt.date.today()}  \n",
+        "Re-run each cell top-to-bottom to reproduce the full workflow.\n",
+        "\n",
+        "**Requirements:** `pip install tuiml`",
+    ]))
+
+    # ── Install cell ─────────────────────────────────────────────────────────
+    # First executable cell installs tuiml (e.g. on Colab / a fresh kernel).
+    cells.append(_nb_code([
+        "!pip install tuiml",
+    ]))
+
+    # ── Imports cell ─────────────────────────────────────────────────────────
+    cells.append(_nb_code([
+        "import tuiml\n",
+        "from tuiml.datasets import load_dataset\n",
+        "import matplotlib.pyplot as plt\n",
+        "import pandas as pd\n",
+        "import numpy as np",
+    ]))
+
+    # ── Global seed cell ─────────────────────────────────────────────────────
+    # Mirror the MCP session's reproducibility: execute_tool sets a process-wide
+    # seed, which the workflow reads as a fallback for any step that doesn't take
+    # an explicit seed (data generation, feature selection, CV splits, plots).
+    # Pin the same seed here so the notebook reproduces those steps too.
+    _session_seed = next(
+        (c['args']['random_seed'] for c in calls_snapshot
+         if c['args'].get('random_seed') is not None),
+        None,
+    )
+    if _session_seed is not None:
+        cells.append(_nb_markdown([
+            "## Reproducibility\n",
+            f"This session ran with random seed `{_session_seed}`. "
+            "Setting it globally pins NumPy/Python RNG so results match the original run.",
+        ]))
+        cells.append(_nb_code([
+            "from tuiml.utils.seed import set_global_seed\n",
+            f"set_global_seed({repr(_session_seed)})",
+        ]))
+
+    train_counter = [0]
+    skipped = 0
+
+    for call in calls_snapshot:
+        md_lines, code_lines = _translate_call(call, train_counter)
+        if md_lines is None:
+            skipped += 1
+            continue
+        cells.append(_nb_markdown(md_lines))
+        cells.append(_nb_code(code_lines))
+
+    # Build notebook JSON
+    nb = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {"name": "python", "version": "3.11.0"},
+        },
+        "cells": cells,
+    }
+
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)) or '.', exist_ok=True)
+        with open(path, 'w') as fh:
+            json.dump(nb, fh, indent=1)
+    except Exception as e:
+        return {'status': 'error', 'error': f'Could not write notebook: {e}'}
+
+    abs_path = os.path.abspath(path)
+    workflow_count = len(calls_snapshot) - skipped
+    return {
+        'status': 'success',
+        'path': abs_path,
+        'cells': len(cells),
+        'workflow_calls': workflow_count,
+        'message': (
+            f'Notebook written to {abs_path} '
+            f'({workflow_count} workflow steps → {len(cells)} cells). '
+            f'Open with: jupyter notebook {abs_path}'
+        ),
+    }
+
+
+# =============================================================================
 # Tool Registry
 # =============================================================================
 
@@ -4737,6 +5438,7 @@ TOOL_EXECUTORS = {
     "tuiml_list_files": execute_list_algorithm_files,
     "tuiml_search_source": execute_search_source,
     "tuiml_edit_algorithm": execute_edit_algorithm,
+    "tuiml_export_notebook": execute_export_notebook,
 }
 
 
@@ -4884,7 +5586,13 @@ def get_tool_annotations(tool_name: str) -> Dict[str, bool]:
             "destructiveHint": False,
             "idempotentHint": True,
             "openWorldHint": False
-        }
+        },
+        "tuiml_export_notebook": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False
+        },
     }
 
     # Default annotations for component tools

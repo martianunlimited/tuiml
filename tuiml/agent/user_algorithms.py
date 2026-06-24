@@ -267,6 +267,8 @@ def _import_and_register(file_path: Path, name: str, version: str) -> Tuple[Any,
     Returns ``(class_obj, kind)`` where kind is ``'classifier'`` / ``'regressor'``.
     Raises ``RuntimeError`` on failure.
     """
+    from tuiml.hub import registry
+
     module_name = f"_tuiml_user_{name}_v{version.replace('.', '_')}"
     # Remove any previously-imported copy so decorators re-fire.
     sys.modules.pop(module_name, None)
@@ -276,11 +278,16 @@ def _import_and_register(file_path: Path, name: str, version: str) -> Tuple[Any,
         raise RuntimeError(f"could not build import spec for {file_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception as e:
-        sys.modules.pop(module_name, None)
-        raise RuntimeError(f"error while importing user algorithm: {e}") from e
+    # Re-registering a user algorithm (new version, restart, or edit) is
+    # intentional, so suppress the registry's "already registered" warning for
+    # the whole load — both the user's @classifier/@regressor decorator firing
+    # during exec_module and the versioned-alias registration below.
+    with registry.suppress_overwrite_warnings():
+        try:
+            spec.loader.exec_module(module)
+        except Exception as e:
+            sys.modules.pop(module_name, None)
+            raise RuntimeError(f"error while importing user algorithm: {e}") from e
 
     # Find the decorated class in the imported module.
     from tuiml.base.algorithms import Classifier, Regressor, classifier, regressor
@@ -307,8 +314,10 @@ def _import_and_register(file_path: Path, name: str, version: str) -> Tuple[Any,
         })
         decorator = classifier if kind == "classifier" else regressor
         # Re-apply the decorator to register the alias. We pass empty tags so
-        # the decorator doesn't fail looking for metadata.
-        decorator(tags=["custom", f"version={version}"], version=version)(alias_cls)
+        # the decorator doesn't fail looking for metadata. Suppress the
+        # overwrite warning: re-registering the alias on reload is intentional.
+        with registry.suppress_overwrite_warnings():
+            decorator(tags=["custom", f"version={version}"], version=version)(alias_cls)
 
     return target_cls, kind
 
