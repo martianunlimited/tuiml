@@ -12,21 +12,34 @@ Available:
 from tuiml.preprocessing.scaling.normalize import MinMaxScaler
 from tuiml.preprocessing.scaling.standardize import StandardScaler
 from tuiml.preprocessing.scaling.center import CenterScaler
-from tuiml.preprocessing.scaling.sklearn_standard import SklearnStandardScaler
-from tuiml.preprocessing.scaling.sklearn_minmax import SklearnMinMaxScaler
-from tuiml.preprocessing.scaling.sklearn_robust import SklearnRobustScaler
-from tuiml.preprocessing.scaling.sklearn_normalizer import SklearnNormalizer
-from tuiml.preprocessing.scaling.sklearn_binarizer import SklearnBinarizer
-from tuiml.preprocessing.scaling.sklearn_poly import SklearnPolynomialFeatures
+
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.preprocessing.scaling.sklearn_standard import SklearnStandardScaler
+    from tuiml.preprocessing.scaling.sklearn_minmax import SklearnMinMaxScaler
+    from tuiml.preprocessing.scaling.sklearn_robust import SklearnRobustScaler
+    from tuiml.preprocessing.scaling.sklearn_normalizer import SklearnNormalizer
+    from tuiml.preprocessing.scaling.sklearn_binarizer import SklearnBinarizer
+    from tuiml.preprocessing.scaling.sklearn_poly import SklearnPolynomialFeatures
 
 __all__ = [
     "MinMaxScaler",
     "StandardScaler",
     "CenterScaler",
-    "SklearnStandardScaler",
-    "SklearnMinMaxScaler",
-    "SklearnRobustScaler",
-    "SklearnNormalizer",
-    "SklearnBinarizer",
-    "SklearnPolynomialFeatures",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnStandardScaler",
+        "SklearnMinMaxScaler",
+        "SklearnRobustScaler",
+        "SklearnNormalizer",
+        "SklearnBinarizer",
+        "SklearnPolynomialFeatures",
+    ])
+

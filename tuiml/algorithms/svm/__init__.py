@@ -8,7 +8,6 @@ Algorithms
 - **SVR:** SVM regressor for regression tasks.
 - **SklearnSVC:** Scikit-Learn SVC wrapper.
 
-
 Kernels
 -------
 - **LinearKernel:** Linear kernel.
@@ -22,9 +21,6 @@ Kernels
 
 from tuiml.algorithms.svm.smo import SVC
 from tuiml.algorithms.svm.smoreg import SVR
-from tuiml.algorithms.svm.sklearn_svc import SklearnSVC
-from tuiml.algorithms.svm.sklearn_svr import SklearnSVR
-
 
 # Import all kernels for convenience
 from tuiml.algorithms.svm.kernels import (
@@ -41,11 +37,19 @@ from tuiml.algorithms.svm.kernels import (
     PrecomputedKernel,
 )
 
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.svm.sklearn_svc import SklearnSVC
+    from tuiml.algorithms.svm.sklearn_svr import SklearnSVR
+
 __all__ = [
     "SVC",
     "SVR",
-    "SklearnSVC",
-    "SklearnSVR",
     "Kernel",
     "CachedKernel",
     "kernel",
@@ -58,3 +62,10 @@ __all__ = [
     "StringKernel",
     "PrecomputedKernel",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnSVC",
+        "SklearnSVR",
+    ])
+

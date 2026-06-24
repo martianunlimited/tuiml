@@ -9,9 +9,17 @@ from tuiml.algorithms.linear.linear_regression import LinearRegression
 from tuiml.algorithms.linear.simple_linear_regression import SimpleLinearRegression
 from tuiml.algorithms.linear.sgd import SGDClassifier, SGDRegressor
 from tuiml.algorithms.linear.simple_logistic import SimpleLogisticRegression
-from tuiml.algorithms.linear.sklearn_logistic import SklearnLogisticRegression
-from tuiml.algorithms.linear.sklearn_lin_reg import SklearnLinearRegression
-from tuiml.algorithms.linear.sklearn_regularized_linear import SklearnRidge, SklearnRidgeClassifier, SklearnLasso, SklearnElasticNet
+
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.linear.sklearn_logistic import SklearnLogisticRegression
+    from tuiml.algorithms.linear.sklearn_lin_reg import SklearnLinearRegression
+    from tuiml.algorithms.linear.sklearn_regularized_linear import SklearnRidge, SklearnRidgeClassifier, SklearnLasso, SklearnElasticNet
 
 __all__ = [
     "LogisticRegression",
@@ -20,10 +28,15 @@ __all__ = [
     "SGDClassifier",
     "SGDRegressor",
     "SimpleLogisticRegression",
-    "SklearnLogisticRegression",
-    "SklearnLinearRegression",
-    "SklearnRidge",
-    "SklearnRidgeClassifier",
-    "SklearnLasso",
-    "SklearnElasticNet",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnLogisticRegression",
+        "SklearnLinearRegression",
+        "SklearnRidge",
+        "SklearnRidgeClassifier",
+        "SklearnLasso",
+        "SklearnElasticNet",
+    ])
+

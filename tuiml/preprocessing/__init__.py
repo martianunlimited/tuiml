@@ -52,60 +52,14 @@ from tuiml.base.preprocessing import (
 )
 
 # Scaling
-from tuiml.preprocessing.scaling import (
-    MinMaxScaler,
-    StandardScaler,
-    CenterScaler,
-    SklearnStandardScaler,
-    SklearnMinMaxScaler,
-    SklearnRobustScaler,
-    SklearnNormalizer,
-    SklearnBinarizer,
-    SklearnPolynomialFeatures,
-)
 
 # Encoding
-from tuiml.preprocessing.encoding import (
-    OneHotEncoder,
-    OrdinalEncoder,
-    LabelEncoder,
-    RareCategoryEncoder,
-    SklearnOneHotEncoder,
-    SklearnOrdinalEncoder,
-)
 
 # Imputation
-from tuiml.preprocessing.imputation import (
-    SimpleImputer,
-    KNNImputer,
-    SklearnSimpleImputer,
-)
 
 # Discretization
-from tuiml.preprocessing.discretization import (
-    EqualWidthDiscretizer,
-    QuantileDiscretizer,
-    MDLDiscretizer,
-    SklearnKBinsDiscretizer,
-)
 
 # Decomposition
-from tuiml.preprocessing.decomposition import (
-    SklearnPCA,
-    SklearnIncrementalPCA,
-    SklearnKernelPCA,
-    SklearnSparsePCA,
-    SklearnMiniBatchSparsePCA,
-    SklearnFactorAnalysis,
-    SklearnFastICA,
-    SklearnDictionaryLearning,
-    SklearnMiniBatchDictionaryLearning,
-    SklearnNMF,
-    SklearnMiniBatchNMF,
-    SklearnLatentDirichletAllocation,
-    SklearnSparseCoder,
-    SklearnTruncatedSVD,
-)
 
 # Outliers
 from tuiml.preprocessing.outliers import (
@@ -159,6 +113,60 @@ from tuiml.preprocessing.timeseries import (
     DifferenceTransformer,
 )
 
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.preprocessing.scaling import (
+        MinMaxScaler,
+        StandardScaler,
+        CenterScaler,
+        SklearnStandardScaler,
+        SklearnMinMaxScaler,
+        SklearnRobustScaler,
+        SklearnNormalizer,
+        SklearnBinarizer,
+        SklearnPolynomialFeatures,
+    )
+    from tuiml.preprocessing.encoding import (
+        OneHotEncoder,
+        OrdinalEncoder,
+        LabelEncoder,
+        RareCategoryEncoder,
+        SklearnOneHotEncoder,
+        SklearnOrdinalEncoder,
+    )
+    from tuiml.preprocessing.imputation import (
+        SimpleImputer,
+        KNNImputer,
+        SklearnSimpleImputer,
+    )
+    from tuiml.preprocessing.discretization import (
+        EqualWidthDiscretizer,
+        QuantileDiscretizer,
+        MDLDiscretizer,
+        SklearnKBinsDiscretizer,
+    )
+    from tuiml.preprocessing.decomposition import (
+        SklearnPCA,
+        SklearnIncrementalPCA,
+        SklearnKernelPCA,
+        SklearnSparsePCA,
+        SklearnMiniBatchSparsePCA,
+        SklearnFactorAnalysis,
+        SklearnFastICA,
+        SklearnDictionaryLearning,
+        SklearnMiniBatchDictionaryLearning,
+        SklearnNMF,
+        SklearnMiniBatchNMF,
+        SklearnLatentDirichletAllocation,
+        SklearnSparseCoder,
+        SklearnTruncatedSVD,
+    )
+
 __all__ = [
     # Base
     "Preprocessor",
@@ -173,43 +181,19 @@ __all__ = [
     "MinMaxScaler",
     "StandardScaler",
     "CenterScaler",
-    "SklearnStandardScaler",
-    "SklearnMinMaxScaler",
-    "SklearnRobustScaler",
-    "SklearnNormalizer",
-    "SklearnBinarizer",
-    "SklearnPolynomialFeatures",
     # Encoding
     "OneHotEncoder",
     "OrdinalEncoder",
     "LabelEncoder",
     "RareCategoryEncoder",
-    "SklearnOneHotEncoder",
-    "SklearnOrdinalEncoder",
     # Imputation
     "SimpleImputer",
     "KNNImputer",
-    "SklearnSimpleImputer",
     # Discretization
     "EqualWidthDiscretizer",
     "QuantileDiscretizer",
     "MDLDiscretizer",
-    "SklearnKBinsDiscretizer",
     # Decomposition
-    "SklearnPCA",
-    "SklearnIncrementalPCA",
-    "SklearnKernelPCA",
-    "SklearnSparsePCA",
-    "SklearnMiniBatchSparsePCA",
-    "SklearnFactorAnalysis",
-    "SklearnFastICA",
-    "SklearnDictionaryLearning",
-    "SklearnMiniBatchDictionaryLearning",
-    "SklearnNMF",
-    "SklearnMiniBatchNMF",
-    "SklearnLatentDirichletAllocation",
-    "SklearnSparseCoder",
-    "SklearnTruncatedSVD",
     # Outliers
     "IQROutlierDetector",
     "ValueClipper",
@@ -248,3 +232,32 @@ __all__ = [
     "LagTransformer",
     "DifferenceTransformer",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnStandardScaler",
+        "SklearnMinMaxScaler",
+        "SklearnRobustScaler",
+        "SklearnNormalizer",
+        "SklearnBinarizer",
+        "SklearnPolynomialFeatures",
+        "SklearnOneHotEncoder",
+        "SklearnOrdinalEncoder",
+        "SklearnSimpleImputer",
+        "SklearnKBinsDiscretizer",
+        "SklearnPCA",
+        "SklearnIncrementalPCA",
+        "SklearnKernelPCA",
+        "SklearnSparsePCA",
+        "SklearnMiniBatchSparsePCA",
+        "SklearnFactorAnalysis",
+        "SklearnFastICA",
+        "SklearnDictionaryLearning",
+        "SklearnMiniBatchDictionaryLearning",
+        "SklearnNMF",
+        "SklearnMiniBatchNMF",
+        "SklearnLatentDirichletAllocation",
+        "SklearnSparseCoder",
+        "SklearnTruncatedSVD",
+    ])
+

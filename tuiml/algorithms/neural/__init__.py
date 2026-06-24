@@ -20,8 +20,16 @@ from tuiml.algorithms.neural.perceptron import (
     AveragedPerceptronClassifier,
 )
 from tuiml.algorithms.neural.multilayer_perceptron import MultilayerPerceptronClassifier, MultilayerPerceptronRegressor
-from tuiml.algorithms.neural.sklearn_mlp_clf import SklearnMLPClassifier
-from tuiml.algorithms.neural.sklearn_mlp_reg import SklearnMLPRegressor
+
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.neural.sklearn_mlp_clf import SklearnMLPClassifier
+    from tuiml.algorithms.neural.sklearn_mlp_reg import SklearnMLPRegressor
 
 __all__ = [
     "PerceptronClassifier",
@@ -29,6 +37,11 @@ __all__ = [
     "AveragedPerceptronClassifier",
     "MultilayerPerceptronClassifier",
     "MultilayerPerceptronRegressor",
-    "SklearnMLPClassifier",
-    "SklearnMLPRegressor",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnMLPClassifier",
+        "SklearnMLPRegressor",
+    ])
+

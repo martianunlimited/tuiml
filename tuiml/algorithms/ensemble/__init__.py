@@ -64,8 +64,16 @@ from tuiml.algorithms.ensemble.random_committee import RandomCommitteeClassifier
 from tuiml.algorithms.ensemble.random_subspace import RandomSubspaceClassifier, RandomSubspaceRegressor
 from tuiml.algorithms.ensemble.multi_class_classifier import MultiClassClassifier
 from tuiml.algorithms.ensemble.filtered_classifier import FilteredClassifier
-from tuiml.algorithms.ensemble.sklearn_adaboost import SklearnAdaBoostClassifier, SklearnAdaBoostRegressor
-from tuiml.algorithms.ensemble.sklearn_extra_trees import SklearnExtraTreesClassifier, SklearnExtraTreesRegressor
+
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.ensemble.sklearn_adaboost import SklearnAdaBoostClassifier, SklearnAdaBoostRegressor
+    from tuiml.algorithms.ensemble.sklearn_extra_trees import SklearnExtraTreesClassifier, SklearnExtraTreesRegressor
 
 __all__ = [
     "BaggingClassifier",
@@ -85,8 +93,13 @@ __all__ = [
     "RandomSubspaceRegressor",
     "MultiClassClassifier",
     "FilteredClassifier",
-    "SklearnAdaBoostClassifier",
-    "SklearnAdaBoostRegressor",
-    "SklearnExtraTreesClassifier",
-    "SklearnExtraTreesRegressor",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnAdaBoostClassifier",
+        "SklearnAdaBoostRegressor",
+        "SklearnExtraTreesClassifier",
+        "SklearnExtraTreesRegressor",
+    ])
+

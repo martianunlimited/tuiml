@@ -35,13 +35,21 @@ from tuiml.algorithms.trees.decision_tree import (
     DecisionTreeClassifier,
     DecisionTreeRegressor,
 )
-from tuiml.algorithms.trees.sklearn_rf import SklearnRandomForestClassifier
-from tuiml.algorithms.trees.sklearn_dt import SklearnDecisionTreeClassifier
-from tuiml.algorithms.trees.sklearn_gb_clf import SklearnGradientBoostingClassifier
-from tuiml.algorithms.trees.sklearn_gb_reg import SklearnGradientBoostingRegressor
-from tuiml.algorithms.trees.sklearn_rf_reg import SklearnRandomForestRegressor
-from tuiml.algorithms.trees.sklearn_dt_reg import SklearnDecisionTreeRegressor
-from tuiml.algorithms.trees.sklearn_hist_gb import SklearnHistGradientBoostingClassifier, SklearnHistGradientBoostingRegressor
+
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.trees.sklearn_rf import SklearnRandomForestClassifier
+    from tuiml.algorithms.trees.sklearn_dt import SklearnDecisionTreeClassifier
+    from tuiml.algorithms.trees.sklearn_gb_clf import SklearnGradientBoostingClassifier
+    from tuiml.algorithms.trees.sklearn_gb_reg import SklearnGradientBoostingRegressor
+    from tuiml.algorithms.trees.sklearn_rf_reg import SklearnRandomForestRegressor
+    from tuiml.algorithms.trees.sklearn_dt_reg import SklearnDecisionTreeRegressor
+    from tuiml.algorithms.trees.sklearn_hist_gb import SklearnHistGradientBoostingClassifier, SklearnHistGradientBoostingRegressor
 
 __all__ = [
     "DecisionTreeClassifier",
@@ -58,15 +66,20 @@ __all__ = [
     "HoeffdingTreeClassifier",
     "M5ModelTreeRegressor",
     "LogisticModelTreeClassifier",
-    "SklearnRandomForestClassifier",
-    "SklearnDecisionTreeClassifier",
-    "SklearnGradientBoostingClassifier",
-    "SklearnGradientBoostingRegressor",
-    "SklearnRandomForestRegressor",
-    "SklearnDecisionTreeRegressor",
-    "SklearnHistGradientBoostingClassifier",
-    "SklearnHistGradientBoostingRegressor",
     # Backward compat
     "C45DecisionTreeClassifier",
     "C45DecisionTreeRegressor",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnRandomForestClassifier",
+        "SklearnDecisionTreeClassifier",
+        "SklearnGradientBoostingClassifier",
+        "SklearnGradientBoostingRegressor",
+        "SklearnRandomForestRegressor",
+        "SklearnDecisionTreeRegressor",
+        "SklearnHistGradientBoostingClassifier",
+        "SklearnHistGradientBoostingRegressor",
+    ])
+

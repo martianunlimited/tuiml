@@ -46,60 +46,14 @@ from tuiml.algorithms.bayesian import (
 )
 
 # Tree-based algorithms
-from tuiml.algorithms.trees import (
-    DecisionStumpClassifier,
-    C45TreeClassifier,
-    RandomTreeClassifier,
-    RandomForestClassifier,
-    RandomForestRegressor,
-    ReducedErrorPruningTreeClassifier,
-    HoeffdingTreeClassifier,
-    M5ModelTreeRegressor,
-    LogisticModelTreeClassifier,
-    SklearnRandomForestClassifier,
-    SklearnDecisionTreeClassifier,
-    SklearnGradientBoostingClassifier,
-    SklearnGradientBoostingRegressor,
-    SklearnRandomForestRegressor,
-    SklearnDecisionTreeRegressor,
-)
 
 # Neighbor-based algorithms
-from tuiml.algorithms.neighbors import (
-    KNearestNeighborsClassifier,
-    KNearestNeighborsRegressor,
-    KStarClassifier,
-    LocallyWeightedLearningRegressor,
-    SklearnKNeighborsClassifier,
-    SklearnKNeighborsRegressor,
-)
 
 # Linear algorithms
-from tuiml.algorithms.linear import (
-    LogisticRegression,
-    LinearRegression,
-    SimpleLinearRegression,
-    SGDClassifier,
-    SGDRegressor,
-    SimpleLogisticRegression,
-    SklearnLogisticRegression,
-    SklearnLinearRegression,
-)
 
 # SVM algorithms
-from tuiml.algorithms.svm import (
-    SVC,
-    SVR,
-    SklearnSVC,
-    SklearnSVR,
-)
 
 # Neural networks
-from tuiml.algorithms.neural import (
-    MultilayerPerceptronClassifier,
-    VotedPerceptronClassifier,
-    SklearnMLPClassifier,
-)
 
 # Rule-based algorithms
 from tuiml.algorithms.rules import (
@@ -189,6 +143,60 @@ from tuiml.algorithms.streaming import (
     AdaptiveRandomForestClassifier,
 )
 
+try:
+    import sklearn
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+if SKLEARN_AVAILABLE:
+    from tuiml.algorithms.trees import (
+        DecisionStumpClassifier,
+        C45TreeClassifier,
+        RandomTreeClassifier,
+        RandomForestClassifier,
+        RandomForestRegressor,
+        ReducedErrorPruningTreeClassifier,
+        HoeffdingTreeClassifier,
+        M5ModelTreeRegressor,
+        LogisticModelTreeClassifier,
+        SklearnRandomForestClassifier,
+        SklearnDecisionTreeClassifier,
+        SklearnGradientBoostingClassifier,
+        SklearnGradientBoostingRegressor,
+        SklearnRandomForestRegressor,
+        SklearnDecisionTreeRegressor,
+    )
+    from tuiml.algorithms.neighbors import (
+        KNearestNeighborsClassifier,
+        KNearestNeighborsRegressor,
+        KStarClassifier,
+        LocallyWeightedLearningRegressor,
+        SklearnKNeighborsClassifier,
+        SklearnKNeighborsRegressor,
+    )
+    from tuiml.algorithms.linear import (
+        LogisticRegression,
+        LinearRegression,
+        SimpleLinearRegression,
+        SGDClassifier,
+        SGDRegressor,
+        SimpleLogisticRegression,
+        SklearnLogisticRegression,
+        SklearnLinearRegression,
+    )
+    from tuiml.algorithms.svm import (
+        SVC,
+        SVR,
+        SklearnSVC,
+        SklearnSVR,
+    )
+    from tuiml.algorithms.neural import (
+        MultilayerPerceptronClassifier,
+        VotedPerceptronClassifier,
+        SklearnMLPClassifier,
+    )
+
 __all__ = [
     # Base classes
     "Algorithm",
@@ -221,19 +229,11 @@ __all__ = [
     "HoeffdingTreeClassifier",
     "M5ModelTreeRegressor",
     "LogisticModelTreeClassifier",
-    "SklearnRandomForestClassifier",
-    "SklearnDecisionTreeClassifier",
-    "SklearnGradientBoostingClassifier",
-    "SklearnGradientBoostingRegressor",
-    "SklearnRandomForestRegressor",
-    "SklearnDecisionTreeRegressor",
     # Neighbors
     "KNearestNeighborsClassifier",
     "KNearestNeighborsRegressor",
     "KStarClassifier",
     "LocallyWeightedLearningRegressor",
-    "SklearnKNeighborsClassifier",
-    "SklearnKNeighborsRegressor",
     # Linear
     "LogisticRegression",
     "LinearRegression",
@@ -241,17 +241,12 @@ __all__ = [
     "SGDClassifier",
     "SGDRegressor",
     "SimpleLogisticRegression",
-    "SklearnLogisticRegression",
-    "SklearnLinearRegression",
     # SVM
     "SVC",
     "SVR",
-    "SklearnSVC",
-    "SklearnSVR",
     # Neural
     "MultilayerPerceptronClassifier",
     "VotedPerceptronClassifier",
-    "SklearnMLPClassifier",
     # Rules
     "ZeroRuleClassifier",
     "OneRuleClassifier",
@@ -314,3 +309,21 @@ __all__ = [
     "HoeffdingTreeClassifier",
     "AdaptiveRandomForestClassifier",
 ]
+
+if SKLEARN_AVAILABLE:
+    __all__.extend([
+        "SklearnRandomForestClassifier",
+        "SklearnDecisionTreeClassifier",
+        "SklearnGradientBoostingClassifier",
+        "SklearnGradientBoostingRegressor",
+        "SklearnRandomForestRegressor",
+        "SklearnDecisionTreeRegressor",
+        "SklearnKNeighborsClassifier",
+        "SklearnKNeighborsRegressor",
+        "SklearnLogisticRegression",
+        "SklearnLinearRegression",
+        "SklearnSVC",
+        "SklearnSVR",
+        "SklearnMLPClassifier",
+    ])
+
