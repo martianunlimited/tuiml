@@ -29,6 +29,13 @@ from tuiml.algorithms.clustering.canopy import CanopyClusterer
 from tuiml.algorithms.clustering.cobweb import CobwebClusterer
 from tuiml.algorithms.clustering.filtered_clusterer import FilteredClusterer
 from tuiml.algorithms.clustering.sklearn_kmeans import SklearnKMeansClusterer
+from tuiml.algorithms.clustering.sklearn_clustering import (
+    SklearnDBSCAN,
+    SklearnGaussianMixture,
+    SklearnAgglomerativeClustering,
+    SklearnSpectralClustering,
+    SklearnOPTICS,
+)
 
 __all__ = [
     "Clusterer",
@@ -51,4 +58,9 @@ __all__ = [
     "CobwebClusterer",
     "FilteredClusterer",
     "SklearnKMeansClusterer",
+    "SklearnDBSCAN",
+    "SklearnGaussianMixture",
+    "SklearnAgglomerativeClustering",
+    "SklearnSpectralClustering",
+    "SklearnOPTICS",
 ]

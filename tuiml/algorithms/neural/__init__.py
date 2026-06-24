@@ -21,6 +21,7 @@ from tuiml.algorithms.neural.perceptron import (
 )
 from tuiml.algorithms.neural.multilayer_perceptron import MultilayerPerceptronClassifier, MultilayerPerceptronRegressor
 from tuiml.algorithms.neural.sklearn_mlp_clf import SklearnMLPClassifier
+from tuiml.algorithms.neural.sklearn_mlp_reg import SklearnMLPRegressor
 
 __all__ = [
     "PerceptronClassifier",
@@ -29,4 +30,5 @@ __all__ = [
     "MultilayerPerceptronClassifier",
     "MultilayerPerceptronRegressor",
     "SklearnMLPClassifier",
+    "SklearnMLPRegressor",
 ]

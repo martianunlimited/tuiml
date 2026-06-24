@@ -433,10 +433,11 @@ WORKFLOW_TOOLS = {
                     "type": "string",
                     "description": (
                         "Algorithm class name. Examples:\n"
-                        "- Classifiers: 'RandomForestClassifier', 'SklearnHistGradientBoostingClassifier', 'SklearnGaussianNB', 'SklearnRidgeClassifier'\n"
-                        "- Regressors: 'LinearRegression', 'SklearnLasso', 'SklearnHistGradientBoostingRegressor'\n"
-                        "- Streaming: 'OzaBagClassifier', 'HoeffdingTreeClassifier', 'HoeffdingAdaptiveTreeClassifier', 'DDMDetector'\n"
-                        "- Clusterers: 'KMeansClusterer', 'GaussianMixtureClusterer', 'DBSCANClusterer'"
+                        "- Classifiers: 'RandomForestClassifier', 'SklearnHistGradientBoostingClassifier', 'SklearnGaussianNB', 'SklearnRidgeClassifier', 'SklearnExtraTreesClassifier', 'SklearnGaussianProcessClassifier'\n"
+                        "- Regressors: 'LinearRegression', 'SklearnLasso', 'SklearnHistGradientBoostingRegressor', 'SklearnMLPRegressor', 'SklearnGaussianProcessRegressor'\n"
+                        "- Streaming: 'OzaBagClassifier', 'HoeffdingTreeClassifier', 'CapyMOANaiveBayes', 'CapyMOASGDClassifier', 'CapyMOAAdaptiveRandomForestRegressor'\n"
+                        "- Clusterers: 'KMeansClusterer', 'GaussianMixtureClusterer', 'SklearnDBSCAN', 'SklearnGaussianMixture', 'SklearnAgglomerativeClustering'\n"
+                        "- Feature Selection/Extraction: Can be used in 'preprocessing' or 'feature_selection' e.g. 'SklearnSelectKBest', 'SklearnRFE', 'SklearnTSNE', 'SklearnIsomap'"
                     )
                 },
                 "data": {

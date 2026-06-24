@@ -37,6 +37,12 @@ from tuiml.features.extraction.random_projection import (
 )
 from tuiml.features.extraction.sklearn_pca import SklearnPCAExtractor
 from tuiml.features.extraction.sklearn_random_projection import SklearnGaussianRandomProjection, SklearnSparseRandomProjection
+from tuiml.features.extraction.sklearn_manifold import (
+    SklearnTSNE,
+    SklearnIsomap,
+    SklearnMDS,
+    SklearnLocallyLinearEmbedding,
+)
 
 __all__ = [
     "PCAExtractor",
@@ -45,4 +51,8 @@ __all__ = [
     "SklearnPCAExtractor",
     "SklearnGaussianRandomProjection",
     "SklearnSparseRandomProjection",
+    "SklearnTSNE",
+    "SklearnIsomap",
+    "SklearnMDS",
+    "SklearnLocallyLinearEmbedding",
 ]
